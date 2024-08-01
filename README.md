@@ -1,7 +1,7 @@
 ### 概要
 pngの連番画像を読み込んで、フィルターをかけるアプリケーションです。shader toyのように pixel 単位で制御したフィルターを自由に作る事ができます。申しわけ程度のGUIもあります。
 
-![sample_0001](./assets/screenshots/sample_0001.png)
+![sample_0001](./assets/screenshots/sample_0002.png)
 
 ### road map
 
