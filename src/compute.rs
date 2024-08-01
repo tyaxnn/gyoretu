@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use wgpu::{BufferUsages, Extent3d, TextureView, util::DeviceExt};
 
-use crate::status::Status;
+use crate::status::{Status,GEN_BUFFER_SIZE,FIL_BUFFER_SIZE};
 
 pub struct ComputeModel{
     pub pipeline_init : wgpu::ComputePipeline,
@@ -32,46 +32,13 @@ impl ComputeModel {
         status : Status,
     ) -> ComputeModel{
 
-        /*
-        step 0 : inpute_texture -> buffer_1(w) : pipeline_init  use bindgroup_even
-        step 1 : buffer_1(r)    -> buffer_2(w) : pipelines[0]   use bindgroup_odd
-        step 2 : buffer_2(r)    -> buffer_1(w) : pipelines[1]   use bindgroup_even
-        ...
-        */
-
         //this shader is identity filter
         let shader_module_init = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(include_str!("copy_tx2bf.wgsl").into()),
         });
 
-        //read all .wgsl files in /src/filters
-        let paths = fs::read_dir("./src/filters/").unwrap();
-
-        let mut shader_modules = Vec::new();
-
-        let mut key_lists = Vec::new();
-
-        for path in paths {
-            let pathbuf = path.unwrap().path();
-            let key = pathbuf.file_stem().unwrap().to_str().unwrap().to_string();
-
-            let path_string = format!("./src/filters/{}.wgsl",key);
-
-            //println!("{}",path_string);
-
-
-            let path_read_to_string = fs::read_to_string(path_string).unwrap();
-
-            let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: None,
-                source: wgpu::ShaderSource::Wgsl(path_read_to_string.into()),
-            });
-
-            key_lists.push(key.clone());
-            shader_modules.push(KeyShaderModule{key,shader_module});
-            
-        }
+        let key_lists = Vec::new();
 
         let bindgroup_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
@@ -108,7 +75,7 @@ impl ComputeModel {
                             view_dimension: wgpu::TextureViewDimension::D2,
                             sample_type: wgpu::TextureSampleType::Float { filterable: true },
                     },
-                    count: NonZeroU32::new(status.frame_len),
+                    count: NonZeroU32::new(status.source.frame_len()),
                 },
                 //ping-pong buffer 1
                 wgpu::BindGroupLayoutEntry {
@@ -162,20 +129,7 @@ impl ComputeModel {
         });
 
         //this vec contain all filter's piplines
-        let mut pipelines = HashMap::new();
-
-        for key_shader_module in &shader_modules{
-            let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: None,
-                layout: Some(&pipeline_layout),
-                module: &key_shader_module.shader_module,
-                entry_point: "main",
-                compilation_options: Default::default(),
-            });
-
-            pipelines.insert(key_shader_module.key.clone(), pipeline);
-        }
-
+        let pipelines = HashMap::new();
 
         /*------------------------------------
                 initialize buffers
@@ -183,7 +137,7 @@ impl ComputeModel {
         
         let status_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Status"),
-            size: status.buffer_size,
+            size: GEN_BUFFER_SIZE,
             usage: BufferUsages::COPY_DST | BufferUsages::STORAGE | BufferUsages::UNIFORM,
             mapped_at_creation: false,
         });
@@ -205,7 +159,7 @@ impl ComputeModel {
 
         let filterinfo_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Status"),
-            size: status.filterinfo_size,
+            size: FIL_BUFFER_SIZE,
             usage: BufferUsages::COPY_DST | BufferUsages::STORAGE | BufferUsages::UNIFORM,
             mapped_at_creation: false,
         });
@@ -294,6 +248,231 @@ impl ComputeModel {
             key_lists,
         }
     }
+
+    //recreate computemodel : new input texture
+    //もっと簡潔に書きたい。
+    pub fn update_inputs (
+        &mut self, 
+        input_tx_views_b : &Vec<&TextureView>,
+        output_tx_view : &TextureView,
+        device : &wgpu::Device,
+        status : &mut Status,
+    ) {
+
+        /*
+        step 0 : inpute_texture -> buffer_1(w) : pipeline_init  use bindgroup_even
+        step 1 : buffer_1(r)    -> buffer_2(w) : pipelines[0]   use bindgroup_odd
+        step 2 : buffer_2(r)    -> buffer_1(w) : pipelines[1]   use bindgroup_even
+        ...
+        */
+
+        let bindgroup_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+
+                //it storage current status (window size, now which frames, which steps)
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                //render this texture
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::WriteOnly,
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                },
+                //storage sequential texture (raw movie data)
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: NonZeroU32::new(status.source.frame_len()),
+                },
+                //ping-pong buffer 1
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: (true) },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+
+                //ping-pong buffer 2
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: (false) },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                //it storage filter parametor
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let shader_module_init = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(include_str!("copy_tx2bf.wgsl").into()),
+        });
+
+        let paths = fs::read_dir("./src/filters/").unwrap();
+
+        let mut shader_modules = Vec::new();
+
+        let mut key_lists = Vec::new();
+
+        for path in paths {
+            let pathbuf = path.unwrap().path();
+            let key = pathbuf.file_stem().unwrap().to_str().unwrap().to_string();
+
+            let path_string = format!("./src/filters/{}.wgsl",key);
+
+            let path_read_to_string = fs::read_to_string(path_string).unwrap();
+
+            let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(path_read_to_string.into()),
+            });
+
+            key_lists.push(key.clone());
+            shader_modules.push(KeyShaderModule{key,shader_module});
+            
+        }
+
+        self.key_lists = key_lists;
+
+        
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &[&bindgroup_layout],
+            push_constant_ranges: &[],
+        });
+
+        self.pipeline_init = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: None,
+            layout: Some(&pipeline_layout),
+            module: &shader_module_init,
+            entry_point: "main",
+            compilation_options: Default::default(),
+        });
+
+        //this vec contain all filter's piplines
+        let mut pipelines = HashMap::new();
+
+        for key_shader_module in &shader_modules{
+            let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: None,
+                layout: Some(&pipeline_layout),
+                module: &key_shader_module.shader_module,
+                entry_point: "main",
+                compilation_options: Default::default(),
+            });
+
+            pipelines.insert(key_shader_module.key.clone(), pipeline);
+        }
+
+        self.pipelines = pipelines;
+
+        self.bindgroup_odd = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &bindgroup_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.status_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(output_tx_view),
+                },
+                
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureViewArray(input_tx_views_b),
+                }, 
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: self.intermediate_buffer_1.as_entire_binding(),
+                },
+
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: self.intermediate_buffer_2.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: self.filterinfo_buffer.as_entire_binding(),
+                },
+    
+            ],
+        });
+
+        self.bindgroup_even = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &bindgroup_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.status_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(output_tx_view),
+                },
+                
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureViewArray(input_tx_views_b),
+                }, 
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: self.intermediate_buffer_2.as_entire_binding(),
+                },
+
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: self.intermediate_buffer_1.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: self.filterinfo_buffer.as_entire_binding(),
+                },
+    
+            ],
+        });
+
+        
+    }
 }
 
 pub fn input_tx_views_factory (
@@ -304,20 +483,28 @@ pub fn input_tx_views_factory (
 
     let mut input_tx_views = Vec::new();
 
-    for i in 0..(status.frame_len){
+    for i in (status.source.from)..(status.source.to + 1){
 
-        let file_name = format!("./assets/dendrite/dendrite_00{}{}.png",{
+        let file_name = format!("{}{}_00{}{}.{}",status.source.dir,status.source.filename,{
             if i < 10 {"00"}
             else if i < 100 {"0"}
             else {""}
-        },i);
+        },i,status.source.extension);
 
         print!("\r\x1B[K");
         print!("reading {}",file_name);
 
         //prepare for input picture
-        //let diffuse_bytes = include_bytes!("regtan.png");
-        let diffuse_image = image::open(file_name).unwrap();
+        let missing = image::open("./assets/missing.png").unwrap();
+        let diffuse_image = {
+            match image::open(file_name){
+                Ok(img) => {img}
+                _ => {
+                    missing
+                }
+            }
+        };
+
         let diffuse_rgba = diffuse_image.to_rgba8();
     
         use image::GenericImageView;

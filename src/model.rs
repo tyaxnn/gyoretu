@@ -1,4 +1,3 @@
-
 use wgpu::util::DeviceExt;
 use wgpu::BufferUsages;
 
@@ -12,14 +11,16 @@ use egui_wgpu::ScreenDescriptor;
 
 use crate::compute::{input_tx_views_factory, output_tx_view_factory, ComputeModel};
 use crate::render::RenderModel;
-use crate::status::{Status,PinPongStatus};
-use crate::filters::FilterInfo;
-use crate::gui::{EguiRenderer,gui_filters};
+use crate::status::{PinPongStatus, Status, FIL_BUFFER_SIZE, GEN_BUFFER_SIZE};
+use crate::filters::{SourceInfo,LayerType};
+use crate::gui::{EguiRenderer,gui};
 
 pub struct Model<'a>{
     pub window: &'a Window,
 
     pub pv: WindowChildren<'a>,
+
+    pub output_tx_view : wgpu::TextureView,
 
     pub compute_model : ComputeModel,
     pub render_model : RenderModel,
@@ -27,7 +28,7 @@ pub struct Model<'a>{
 
     pub egui : EguiRenderer,
 
-    pub filter_infos : Vec<FilterInfo>,
+    pub layer_infos : Vec<LayerType>,
     pub id_last : Id,
 }
 
@@ -119,15 +120,13 @@ impl<'a> WindowChildren<'a> {
 }
 
 impl<'a> Model<'a> {
-    pub async fn new(window: &'a Window) -> Model<'a> {
+    pub async fn new(window: &'a Window, status : Status) -> Model<'a> {
 
         /*------------------------------------
                 surface device etc ...
         ------------------------------------*/
 
         let pv = WindowChildren::new(&window).await;
-        
-        let status = Status::new();
 
         /*------------------------------------
                 in/output textures
@@ -136,10 +135,10 @@ impl<'a> Model<'a> {
 
         //create input_texture_views
         //  load images here
-        let input_tx_views = input_tx_views_factory(&pv.device, &pv.queue,status);
+        let input_tx_views = input_tx_views_factory(&pv.device, &pv.queue,status.clone());
         
         //create output_texture_view
-        let output_tx_view = output_tx_view_factory(&pv.device, status);
+        let output_tx_view = output_tx_view_factory(&pv.device, status.clone());
 
         let mut input_tx_views_b = Vec::new();
 
@@ -152,13 +151,15 @@ impl<'a> Model<'a> {
                 compute model
         ------------------------------------*/
 
-        let compute_model = ComputeModel::new(&pv.device,&input_tx_views_b,&output_tx_view,status);
+        let mut compute_model = ComputeModel::new(&pv.device,&input_tx_views_b,&output_tx_view,status.clone());
+
+        compute_model.update_inputs(&input_tx_views_b, &output_tx_view, &pv.device, &mut status.clone());
 
         /*------------------------------------
                 render model
         ------------------------------------*/
 
-        let render_model = RenderModel ::new(&pv.device, pv.surface_format, output_tx_view);
+        let render_model = RenderModel ::new(&pv.device, pv.surface_format, &output_tx_view);
 
         /*------------------------------------
                 gui model
@@ -172,9 +173,10 @@ impl<'a> Model<'a> {
             &window,       // winit Window
         );
 
-        let filter_infos = vec![];
+        let ini_source = LayerType::Source(SourceInfo{id : 1, active : true});
+        let layer_infos = vec![ini_source];
 
-        let id_last = Id{id : filter_infos.len()};
+        let id_last = Id{id : layer_infos.len()};
         
         /*------------------------------------
                 Return Model
@@ -182,11 +184,12 @@ impl<'a> Model<'a> {
         Self {
             window,
             pv,
+            output_tx_view,
             compute_model,
             render_model,
             status,
             egui,
-            filter_infos,
+            layer_infos,
             id_last,
         }
     }
@@ -205,13 +208,13 @@ impl<'a> Model<'a> {
     pub fn update_pre(&mut self) {
         let elapsed_time: f32 = 0.5 + self.status.start_time.elapsed().as_micros() as f32 * 1e-6;
 
-        self.status.next_frame_index = (elapsed_time * self.status.frame_rate as f32) as u32 % self.status.frame_len;
+        self.status.next_frame_index = (elapsed_time * self.status.frame_rate as f32) as u32 % self.status.frame_len_max;
     }
 
     pub fn update_post(&mut self) {
         self.status.elapsed_frame += 1;
 
-        self.status.ping_pong = PinPongStatus::FtT2;
+        //self.status.ping_pong = PinPongStatus::FtT2;
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -240,58 +243,67 @@ impl<'a> Model<'a> {
             usage: BufferUsages::COPY_SRC,
         });
         let mut encoder = self.pv.device.create_command_encoder(&Default::default());
-        encoder.copy_buffer_to_buffer(&status_buffer_host, 0, &self.compute_model.status_buffer, 0, self.status.buffer_size);
+        encoder.copy_buffer_to_buffer(&status_buffer_host, 0, &self.compute_model.status_buffer, 0, GEN_BUFFER_SIZE);
 
-        //copy texture date to buffer
-        {
-            let mut compute_pass = encoder.begin_compute_pass(&Default::default());
-            compute_pass.set_pipeline(&self.compute_model.pipeline_init);
-
-            compute_pass.set_bind_group(0, &self.compute_model.bindgroup_even, &[]);
-
-            self.status.ping_pong = PinPongStatus::F1T2;
-            
-            compute_pass.dispatch_workgroups(self.pv.size.width / 16, self.pv.size.height / 16, 1);
-        }
+        
         
         //Filter the image here
-        for infos in &self.filter_infos
+        for layer in &self.layer_infos
         {   
+            match layer{
+                LayerType::Source(infos) => {
+                    if infos.active{
+                        //copy texture date to buffer
+                        {
+                            let mut compute_pass = encoder.begin_compute_pass(&Default::default());
+                            compute_pass.set_pipeline(&self.compute_model.pipeline_init);
 
-            if infos.active == true{
-            
-                let parameter_buffer_host = self.pv.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: None,
-                    contents: bytemuck::bytes_of(&infos.parameter),
-                    usage: BufferUsages::COPY_SRC,
-                });
-
-                encoder.copy_buffer_to_buffer(&parameter_buffer_host, 0, &self.compute_model.filterinfo_buffer, 0, self.status.filterinfo_size);
-                
-                {
-                    let pipeline = self.compute_model.pipelines.get(&infos.key).unwrap();
-                    let mut compute_pass = encoder.begin_compute_pass(&Default::default());
-                    compute_pass.set_pipeline(pipeline);
-                    
-                    match self.status.ping_pong{
-                        PinPongStatus::F2T1 => {
                             compute_pass.set_bind_group(0, &self.compute_model.bindgroup_even, &[]);
 
-                            self.status.ping_pong = PinPongStatus::F1T2
+                            self.status.ping_pong = PinPongStatus::F1T2;
+                            
+                            compute_pass.dispatch_workgroups(self.pv.size.width / 16, self.pv.size.height / 16, 1);
                         }
-                        PinPongStatus::F1T2 => {
-                            compute_pass.set_bind_group(0, &self.compute_model.bindgroup_odd, &[]);
-
-                            self.status.ping_pong = PinPongStatus::F2T1
-                        }
-                        _ => {panic!("Wrong Ping-Pong Status")}
                     }
-                    
-                    compute_pass.dispatch_workgroups(self.pv.size.width / 16, self.pv.size.height / 16, 1);
-
                 }
-
+                LayerType::Filter(infos) => {
+                    if infos.active{
+            
+                        let parameter_buffer_host = self.pv.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: None,
+                            contents: bytemuck::bytes_of(&infos.parameter),
+                            usage: BufferUsages::COPY_SRC,
+                        });
+        
+                        encoder.copy_buffer_to_buffer(&parameter_buffer_host, 0, &self.compute_model.filterinfo_buffer, 0, FIL_BUFFER_SIZE);
+                        
+                        {
+                            let pipeline = self.compute_model.pipelines.get(&infos.key).unwrap();
+                            let mut compute_pass = encoder.begin_compute_pass(&Default::default());
+                            compute_pass.set_pipeline(pipeline);
+                            
+                            match self.status.ping_pong{
+                                PinPongStatus::F2T1 => {
+                                    compute_pass.set_bind_group(0, &self.compute_model.bindgroup_even, &[]);
+        
+                                    self.status.ping_pong = PinPongStatus::F1T2
+                                }
+                                PinPongStatus::F1T2 => {
+                                    compute_pass.set_bind_group(0, &self.compute_model.bindgroup_odd, &[]);
+        
+                                    self.status.ping_pong = PinPongStatus::F2T1
+                                }
+                                _ => {panic!("Wrong Ping-Pong Status")}
+                            }
+                            
+                            compute_pass.dispatch_workgroups(self.pv.size.width / 16, self.pv.size.height / 16, 1);
+        
+                        }
+                    }
+                }
             }
+
+            
         }
 
         {
@@ -302,7 +314,7 @@ impl<'a> Model<'a> {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                        load: wgpu::LoadOp::Clear(wgpu::Color{r: 0.8,g:0.8,b:0.8,a:1.0}),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -337,7 +349,7 @@ impl<'a> Model<'a> {
             &self.window,
             &view,
             screen_descriptor,
-            |ui| gui_filters(ui,&mut self.filter_infos,&self.compute_model.key_lists, &mut self.id_last),
+            |ui| gui(ui,&mut self.layer_infos, &mut self.id_last, &mut self.status, &mut self.compute_model, &self.pv.device, &self.pv.queue, &self.output_tx_view),
         );
 
         self.pv.queue.submit(Some(encoder.finish()));

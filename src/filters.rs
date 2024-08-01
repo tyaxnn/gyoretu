@@ -1,4 +1,17 @@
 #[derive(Debug, Clone)]
+
+pub enum LayerType {
+    Source(SourceInfo),
+    Filter(FilterInfo),
+}
+
+#[derive(Debug,Clone)]
+pub struct SourceInfo {
+    pub id : usize,
+    pub active : bool,
+}
+
+#[derive(Debug,Clone)]
 pub struct FilterInfo {
     pub key : String,
     pub parameter : [u32; 20],

@@ -19,7 +19,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let dimensions = textureDimensions(input_texture[status.frame_read]);
 
     var position = vec2<i32>(global_id.xy);
-
+    
     var color : vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 1.0);
 
     let fragCoord: vec2<f32> = vec2<f32>(global_id.xy) / vec2<f32>(f32(status.width), f32(status.height)) - vec2<f32>(0.5, 0.5);

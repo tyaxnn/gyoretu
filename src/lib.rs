@@ -14,9 +14,10 @@ mod filters;
 mod gui;
 
 use model::Model;
+use status::Status;
 
 const WIDTH : i32 = 1920;
-const HEIGHT: i32 = 1080;
+const HEIGHT: i32 = 1620;
 
 
 pub async fn run() {
@@ -43,8 +44,10 @@ pub async fn run() {
     window.set_max_inner_size(Some(PhysicalSize::new(WIDTH as f32, HEIGHT as f32)));
     window.set_min_inner_size(Some(PhysicalSize::new(WIDTH as f32, HEIGHT as f32)));
 
+    let new_status = Status::new();
+
     // Model::new uses async code, so we're going to wait for it to finish
-    let mut model = Model::new(&window).await;
+    let mut model = Model::new(&window, new_status).await;
     let mut surface_configured = false;
 
     

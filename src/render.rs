@@ -11,7 +11,7 @@ impl RenderModel{
     pub fn new(
         device : &wgpu::Device,
         surface_format : TextureFormat,
-        output_texture_view : TextureView,
+        output_texture_view : &TextureView,
     ) -> RenderModel {
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
@@ -86,7 +86,7 @@ impl RenderModel{
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&output_texture_view),
+                    resource: wgpu::BindingResource::TextureView(output_texture_view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
