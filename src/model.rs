@@ -12,7 +12,7 @@ use egui_wgpu::ScreenDescriptor;
 use crate::compute::{input_tx_views_factory, output_tx_view_factory, ComputeModel};
 use crate::render::RenderModel;
 use crate::status::{PinPongStatus, Status, FIL_BUFFER_SIZE, GEN_BUFFER_SIZE};
-use crate::filters::{SourceInfo,LayerType};
+use crate::filters::{SourceInfo,LayerType,BgInfo};
 use crate::gui::{EguiRenderer,gui};
 
 pub struct Model<'a>{
@@ -174,7 +174,7 @@ impl<'a> Model<'a> {
         );
 
         let ini_source = LayerType::Source(SourceInfo{id : 1, active : true});
-        let layer_infos = vec![ini_source];
+        let layer_infos = vec![LayerType::Bg(BgInfo::new(1)),ini_source];
 
         let id_last = Id{id : layer_infos.len()};
         
@@ -214,7 +214,7 @@ impl<'a> Model<'a> {
     pub fn update_post(&mut self) {
         self.status.elapsed_frame += 1;
 
-        //self.status.ping_pong = PinPongStatus::FtT2;
+        //self.status.ping_pong = PinPongStatus::F1T2;
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -245,7 +245,35 @@ impl<'a> Model<'a> {
         let mut encoder = self.pv.device.create_command_encoder(&Default::default());
         encoder.copy_buffer_to_buffer(&status_buffer_host, 0, &self.compute_model.status_buffer, 0, GEN_BUFFER_SIZE);
 
-        
+        {
+            let parameter_buffer_host = self.pv.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::bytes_of(&[0f32;20]),
+                usage: BufferUsages::COPY_SRC,
+            });
+
+            encoder.copy_buffer_to_buffer(&parameter_buffer_host, 0, &self.compute_model.filterinfo_buffer, 0, FIL_BUFFER_SIZE);
+
+            { 
+                let mut compute_pass = encoder.begin_compute_pass(&Default::default());
+                compute_pass.set_pipeline(&self.compute_model.pipeline_bg);
+    
+                match self.status.ping_pong{
+                    PinPongStatus::F2T1 => {
+                        compute_pass.set_bind_group(0, &self.compute_model.bindgroup_even, &[]);
+    
+                        self.status.ping_pong = PinPongStatus::F1T2
+                    }
+                    PinPongStatus::F1T2 => {
+                        compute_pass.set_bind_group(0, &self.compute_model.bindgroup_odd, &[]);
+    
+                        self.status.ping_pong = PinPongStatus::F2T1
+                    }
+                }
+                
+                compute_pass.dispatch_workgroups(self.pv.size.width / 16, self.pv.size.height / 16, 1);
+            }
+        } 
         
         //Filter the image here
         for layer in &self.layer_infos
@@ -256,11 +284,20 @@ impl<'a> Model<'a> {
                         //copy texture date to buffer
                         {
                             let mut compute_pass = encoder.begin_compute_pass(&Default::default());
-                            compute_pass.set_pipeline(&self.compute_model.pipeline_init);
+                            compute_pass.set_pipeline(&self.compute_model.pipeline_add_source);
 
-                            compute_pass.set_bind_group(0, &self.compute_model.bindgroup_even, &[]);
-
-                            self.status.ping_pong = PinPongStatus::F1T2;
+                            match self.status.ping_pong{
+                                PinPongStatus::F2T1 => {
+                                    compute_pass.set_bind_group(0, &self.compute_model.bindgroup_even, &[]);
+        
+                                    self.status.ping_pong = PinPongStatus::F1T2
+                                }
+                                PinPongStatus::F1T2 => {
+                                    compute_pass.set_bind_group(0, &self.compute_model.bindgroup_odd, &[]);
+        
+                                    self.status.ping_pong = PinPongStatus::F2T1
+                                }
+                            }
                             
                             compute_pass.dispatch_workgroups(self.pv.size.width / 16, self.pv.size.height / 16, 1);
                         }
@@ -293,11 +330,41 @@ impl<'a> Model<'a> {
         
                                     self.status.ping_pong = PinPongStatus::F2T1
                                 }
-                                _ => {panic!("Wrong Ping-Pong Status")}
                             }
                             
                             compute_pass.dispatch_workgroups(self.pv.size.width / 16, self.pv.size.height / 16, 1);
         
+                        }
+                    }
+                }
+                LayerType::Bg(infos) => {
+                    if infos.active{
+                        let parameter_buffer_host = self.pv.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: None,
+                            contents: bytemuck::bytes_of(&infos.parameter),
+                            usage: BufferUsages::COPY_SRC,
+                        });
+            
+                        encoder.copy_buffer_to_buffer(&parameter_buffer_host, 0, &self.compute_model.filterinfo_buffer, 0, FIL_BUFFER_SIZE);
+            
+                        { 
+                            let mut compute_pass = encoder.begin_compute_pass(&Default::default());
+                            compute_pass.set_pipeline(&self.compute_model.pipeline_bg);
+                
+                            match self.status.ping_pong{
+                                PinPongStatus::F2T1 => {
+                                    compute_pass.set_bind_group(0, &self.compute_model.bindgroup_even, &[]);
+                
+                                    self.status.ping_pong = PinPongStatus::F1T2
+                                }
+                                PinPongStatus::F1T2 => {
+                                    compute_pass.set_bind_group(0, &self.compute_model.bindgroup_odd, &[]);
+                
+                                    self.status.ping_pong = PinPongStatus::F2T1
+                                }
+                            }
+                            
+                            compute_pass.dispatch_workgroups(self.pv.size.width / 16, self.pv.size.height / 16, 1);
                         }
                     }
                 }
@@ -322,15 +389,6 @@ impl<'a> Model<'a> {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            
-            /* 
-            render_pass.set_pipeline(&self.render_model.pipeline);
-            render_pass.set_bind_group(0, &self.render_model.bindgroup, &[]);
-            render_pass.set_vertex_buffer(0, self.render_model.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.render_model.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            //render_pass.set_bind_group(0, &self.render_model.bindgroup, &[]);
-            render_pass.draw_indexed(0..self.render_model.num_indices, 0, 0..1);
-            */
 
             render_pass.set_pipeline(&self.render_model.pipeline);
             render_pass.set_bind_group(0, &self.render_model.bindgroup, &[]);

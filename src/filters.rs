@@ -3,6 +3,7 @@
 pub enum LayerType {
     Source(SourceInfo),
     Filter(FilterInfo),
+    Bg(BgInfo)
 }
 
 #[derive(Debug,Clone)]
@@ -20,18 +21,6 @@ pub struct FilterInfo {
     pub active : bool,
 }
 
-#[derive(Debug,Clone)]
-pub enum Ptype {
-    Integer,
-    Float,
-    Color3,
-}
-
-#[derive(Debug,Clone)]
-pub struct Pinfo {
-    pub ptype : Ptype,
-    pub plabel : String,
-}
 
 impl FilterInfo{
     pub fn new(key_str : &str, id : usize) -> FilterInfo{
@@ -75,6 +64,40 @@ impl FilterInfo{
         }
     }
 }
+
+#[derive(Debug,Clone)]
+pub struct BgInfo {
+    pub parameter : [u32; 20],
+    pub id : usize,
+    pub active : bool,
+}
+
+impl BgInfo{
+    pub fn new(id : usize) -> BgInfo{
+        let parameter = [(1f32).to_bits();20];
+        let active = true;
+
+        BgInfo{
+            parameter,
+            id, 
+            active,
+        }
+    }
+}
+
+#[derive(Debug,Clone)]
+pub enum Ptype {
+    Integer,
+    Float,
+    Color3,
+}
+
+#[derive(Debug,Clone)]
+pub struct Pinfo {
+    pub ptype : Ptype,
+    pub plabel : String,
+}
+
 
 impl Pinfo{
     fn new(ptype : Ptype, label : &str) -> Pinfo {

@@ -142,6 +142,54 @@ pub fn gui_filters (ui: &mut egui::Ui, layer_infos : &mut Vec<LayerType>, key_li
                         );
                     }
                 }
+                LayerType::Bg(bg_info) => {
+                    ui.horizontal(|ui| {
+                        ui.checkbox(&mut bg_info.active, "");
+
+                        ui.label("Back ground");
+                    });
+
+                    ui.horizontal(|ui| {
+        
+                        if ui.button("up").clicked() {
+                            if i != filter_infos_len-1{
+                                swap_lists.push((i,i+1));
+                            }
+                        }
+                        else if ui.button("down").clicked() {
+                            if i != 0{
+                                swap_lists.push((i,i-1));
+                            }
+                        }
+                    });
+
+                    egui::CollapsingHeader::new("")
+                            .id_source(format!("{}","bg")).default_open(true)
+                            .show(ui, |ui| {
+
+                        let r= f32::from_bits(bg_info.parameter[0]);
+
+                        let g= f32::from_bits(bg_info.parameter[1]);
+
+                        let b= f32::from_bits(bg_info.parameter[2]);
+
+                        let mut rgb = [r, g, b];
+
+                        ui.horizontal(|ui| {
+                            egui::widgets::color_picker::color_edit_button_rgb(ui,&mut rgb);
+
+                            ui.label("Back ground color");
+                        });
+
+
+                        bg_info.parameter[0] = rgb[0].to_bits();
+
+                        bg_info.parameter[1] = rgb[1].to_bits();
+
+                        bg_info.parameter[2] = rgb[2].to_bits();
+
+                    });
+                }
             }
 
             

@@ -19,15 +19,29 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let dimensions = textureDimensions(input_texture[status.frame_read]);
 
     var position = vec2<i32>(global_id.xy);
-    
-    var color : vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 1.0);
 
-    let fragCoord: vec2<f32> = vec2<f32>(global_id.xy) / vec2<f32>(f32(status.width), f32(status.height)) - vec2<f32>(0.5, 0.5);
+    let color_pre = intermediate_r[index_xy(global_id.xy)];
 
-    color = textureLoad(input_texture[status.frame_read], vec2<i32>(position.x, position.y),0);
+    let color_source = textureLoad(input_texture[status.frame_read], vec2<i32>(position.x, position.y),0);
+
+    let standalization = color_source.w + (1-color_source.w) * color_pre.w;
+
+    let color_new_rgb = (color_source.xyz * color_source.w + color_pre.xyz * (1-color_source.w) * color_pre.w) / standalization;
+
+    let color_new_a = standalization;
+
+    var color : vec4<f32> = vec4<f32>(color_new_rgb, color_new_a);
     
     intermediate_w[global_id.x + status.width * global_id.y] = color;
         
     textureStore(outputTex, vec2<i32>(global_id.xy), color);
 
+}
+
+fn index_xy(v : vec2<u32>) -> u32 {
+    return v.x + v.y * status.width;
+}
+
+fn index_x_y(x : u32, y : u32) -> u32 {
+    return x + y * status.width;
 }

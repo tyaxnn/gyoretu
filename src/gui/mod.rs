@@ -8,7 +8,7 @@ use winit::event::WindowEvent;
 use winit::window::Window;
 
 
-use crate::filters::{FilterInfo,LayerType};
+use crate::filters::LayerType;
 use crate::model::Id;
 use crate::status::Status;
 use crate::compute::ComputeModel;

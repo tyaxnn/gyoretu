@@ -2,7 +2,6 @@ use crate::gui::WindowShowStatus;
 
 #[derive(Debug, Copy, Clone)]
 pub enum PinPongStatus{
-    FtT2,
     F1T2,
     F2T1,
 }
@@ -41,7 +40,7 @@ pub struct Source{
 
 impl Source{
     pub fn frame_len(&self) -> u32 {
-        self.to + 1 +  self.from 
+        self.to + 1 -  self.from 
     }
 }
 
@@ -52,7 +51,7 @@ impl Status {
         let elapsed_frame = 0;
         let next_frame_index = 0; 
         let start_time = std::time::Instant::now();
-        let ping_pong = PinPongStatus::FtT2;
+        let ping_pong = PinPongStatus::F1T2;
         let (mov_width,mov_height) = (1920,1080);
         let win_show_status = WindowShowStatus::Source;
         let source = Source{
