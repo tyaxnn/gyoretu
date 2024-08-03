@@ -7,11 +7,7 @@ use wgpu::{CommandEncoder, Device, Queue, TextureFormat, TextureView};
 use winit::event::WindowEvent;
 use winit::window::Window;
 
-
-use crate::filters::LayerType;
-use crate::model::Id;
 use crate::status::Status;
-use crate::compute::ComputeModel;
 
 mod control_filter;
 use control_filter::gui_filters;
@@ -117,7 +113,7 @@ pub enum WindowShowStatus{
     Filter,
 }
 
-pub fn gui (ui: &Context, layer_infos : &mut Vec<LayerType>,id_last : &mut Id, status : &mut Status, compute_model : &mut ComputeModel, device : &wgpu::Device, queue : &wgpu::Queue, output_tx_view : &wgpu::TextureView) {
+pub fn gui (ui: &Context, status : &mut Status, key_lists : &mut Vec<String>) {
 
     egui::Window::new("Controller")
         // .vscroll(true)
@@ -136,11 +132,11 @@ pub fn gui (ui: &Context, layer_infos : &mut Vec<LayerType>,id_last : &mut Id, s
 
             match status.win_show_status {
                 WindowShowStatus::Source => {
-                    gui_source(ui, status, compute_model, device, queue, output_tx_view)
+                    gui_source(ui, status)
                 }
                 WindowShowStatus::Filter => {
 
-                    gui_filters(ui,layer_infos,&mut compute_model.key_lists, id_last)
+                    gui_filters(ui, key_lists, status)
                 }
             }
 

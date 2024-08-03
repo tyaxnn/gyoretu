@@ -1,15 +1,50 @@
-#[derive(Debug, Clone)]
+use crate::status::SourceId;
 
+#[derive(Debug, Clone)]
+pub struct LayerInfos{
+    pub types : Vec<LayerType>,
+    pub id_last : LayerId
+}
+
+#[derive(Debug, Clone)]
 pub enum LayerType {
     Source(SourceInfo),
     Filter(FilterInfo),
     Bg(BgInfo)
 }
 
+#[derive(Debug,Clone,Copy)]
+pub struct LayerId{
+    pub num : usize,
+}
+
+impl LayerId{
+    pub fn new(num : usize) -> LayerId{
+        LayerId{num}
+    }
+}
+
 #[derive(Debug,Clone)]
 pub struct SourceInfo {
-    pub id : usize,
+    pub id : LayerId,
     pub active : bool,
+    pub source_id : SourceId,
+    pub offset : u32,
+    pub len : u32,
+    //ソースの長さを追加する
+    //ソースの開始位置を追加する
+}
+
+impl SourceInfo {
+    pub fn new(id : LayerId, source_id : SourceId, len : u32) -> SourceInfo{
+        SourceInfo{
+            id,
+            active : true,
+            source_id,
+            offset : 0,
+            len,
+        }
+    }
 }
 
 #[derive(Debug,Clone)]
@@ -17,13 +52,13 @@ pub struct FilterInfo {
     pub key : String,
     pub parameter : [u32; 20],
     pub label : Vec<Pinfo>,
-    pub id : usize,
+    pub id : LayerId,
     pub active : bool,
 }
 
 
-impl FilterInfo{
-    pub fn new(key_str : &str, id : usize) -> FilterInfo{
+impl FilterInfo {
+    pub fn new(key_str : &str, id : LayerId) -> FilterInfo{
         let mut init = [(0f32).to_bits();20];
         let active = true;
 
@@ -68,12 +103,12 @@ impl FilterInfo{
 #[derive(Debug,Clone)]
 pub struct BgInfo {
     pub parameter : [u32; 20],
-    pub id : usize,
+    pub id : LayerId,
     pub active : bool,
 }
 
 impl BgInfo{
-    pub fn new(id : usize) -> BgInfo{
+    pub fn new(id : LayerId) -> BgInfo{
         let parameter = [(1f32).to_bits();20];
         let active = true;
 

@@ -1,20 +1,41 @@
-use crate::filters::{FilterInfo,Ptype,LayerType};
-use crate::model::Id;
+use crate::filters::{FilterInfo, LayerType, Ptype, SourceInfo};
+use crate::status::Status;
+use crate::filters::LayerId;
 
-pub fn gui_filters (ui: &mut egui::Ui, layer_infos : &mut Vec<LayerType>, key_lists : &Vec<String>, id_last : &mut Id) {
-    ui.menu_button("Add filter", |ui| {
+pub fn gui_filters (ui: &mut egui::Ui, key_lists : &Vec<String>, status : &mut Status) {
 
-        for key in key_lists{
-            if ui.button(key).clicked() {
+    ui.horizontal(|ui| {
 
-                id_last.id += 1;
-                layer_infos.push(LayerType::Filter(FilterInfo::new(key,id_last.id)));
+        ui.menu_button("Add filter", |ui| {
+
+            for key in key_lists{
+                if ui.button(key).clicked() {
+
+                    status.layer_infos.id_last.num += 1;
+                    status.layer_infos.types.push(LayerType::Filter(FilterInfo::new(key,LayerId::new(status.layer_infos.id_last.num))));
+                    ui.close_menu();
+                };
+            }
+            if ui.button("cancel").clicked() {
                 ui.close_menu();
-            };
-        }
-        if ui.button("cancel").clicked() {
-            ui.close_menu();
-        }
+            }
+        });
+
+        ui.menu_button("Add Source", |ui| {
+
+            for source in &status.source_infos.sources{
+                if ui.button(format!("# {}",source.id.num)).clicked() {
+
+                    status.layer_infos.id_last.num += 1;
+                    status.layer_infos.types.push(LayerType::Source(SourceInfo::new(status.layer_infos.id_last,source.id, source.frame_len())));
+                    ui.close_menu();
+                };
+            }
+            if ui.button("cancel").clicked() {
+                ui.close_menu();
+            }
+        });
+
     });
 
     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -24,11 +45,11 @@ pub fn gui_filters (ui: &mut egui::Ui, layer_infos : &mut Vec<LayerType>, key_li
         let mut delete_lists = Vec::new();
         let mut swap_lists = Vec::new();
 
-        let filter_infos_len = layer_infos.len();
+        let filter_infos_len = status.layer_infos.types.len();
 
         for i in (0..filter_infos_len).rev(){
 
-            let layer_type =  &mut layer_infos[i];
+            let layer_type =  &mut status.layer_infos.types[i];
 
             match layer_type {
                 LayerType::Source(source_info) => {
@@ -36,7 +57,7 @@ pub fn gui_filters (ui: &mut egui::Ui, layer_infos : &mut Vec<LayerType>, key_li
 
                         ui.checkbox(&mut source_info.active, "");
         
-                        ui.label(format!("Source #{}",&source_info.id));
+                        ui.label(format!("Source #{} ",&source_info.source_id.num));
                     });
 
                     ui.horizontal(|ui| {
@@ -51,6 +72,17 @@ pub fn gui_filters (ui: &mut egui::Ui, layer_infos : &mut Vec<LayerType>, key_li
                                 swap_lists.push((i,i-1));
                             }
                         }
+
+                        else if ui.button("delete").clicked() {
+                            delete_lists.push(i);
+                        }
+                    });
+
+                    //フレームのオフセットをいじる
+                    egui::CollapsingHeader::new("")
+                            .id_source(format!("{}",source_info.id.num)).default_open(true)
+                            .show(ui, |ui| {    
+                        ui.add(egui::Slider::new(&mut source_info.offset, 0..= status.setting.frame_len).text("offset"));
                     });
                 }
                 LayerType::Filter(filter_info) => {
@@ -58,7 +90,7 @@ pub fn gui_filters (ui: &mut egui::Ui, layer_infos : &mut Vec<LayerType>, key_li
 
                         ui.checkbox(&mut filter_info.active, "");
         
-                        ui.label(&filter_info.key);
+                        ui.label(format!("{}",&filter_info.key));
                     });
         
                     
@@ -83,7 +115,7 @@ pub fn gui_filters (ui: &mut egui::Ui, layer_infos : &mut Vec<LayerType>, key_li
                     if filter_info.label.len() != 0{   
         
                         egui::CollapsingHeader::new("")
-                            .id_source(format!("{}",filter_info.id)).default_open(true)
+                            .id_source(format!("{}",filter_info.id.num)).default_open(true)
                             .show(ui, |ui| {
         
                                 let mut count = 0;
@@ -146,7 +178,7 @@ pub fn gui_filters (ui: &mut egui::Ui, layer_infos : &mut Vec<LayerType>, key_li
                     ui.horizontal(|ui| {
                         ui.checkbox(&mut bg_info.active, "");
 
-                        ui.label("Back ground");
+                        ui.label(format!("Back ground"));
                     });
 
                     ui.horizontal(|ui| {
@@ -164,7 +196,7 @@ pub fn gui_filters (ui: &mut egui::Ui, layer_infos : &mut Vec<LayerType>, key_li
                     });
 
                     egui::CollapsingHeader::new("")
-                            .id_source(format!("{}","bg")).default_open(true)
+                            .id_source(format!("bg{}",bg_info.id.num)).default_open(true)
                             .show(ui, |ui| {
 
                         let r= f32::from_bits(bg_info.parameter[0]);
@@ -197,11 +229,11 @@ pub fn gui_filters (ui: &mut egui::Ui, layer_infos : &mut Vec<LayerType>, key_li
         }
 
         for i in delete_lists.into_iter().rev(){
-            layer_infos.remove(i);
+            status.layer_infos.types.remove(i);
         }
 
         for (i,j) in swap_lists {
-            layer_infos.swap(i, j);
+            status.layer_infos.types.swap(i, j);
         }
         
         ui.end_row();

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use wgpu::{util::DeviceExt, BindGroup, BindingResource, BufferUsages, Extent3d, TextureView};
 
-use crate::status::{Status,GEN_BUFFER_SIZE,FIL_BUFFER_SIZE};
+use crate::status::{Status,GEN_BUFFER_SIZE,FIL_BUFFER_SIZE,sources_len};
 
 pub struct ComputeModel{
     pub pipeline_add_source : wgpu::ComputePipeline,
@@ -30,7 +30,7 @@ impl ComputeModel {
         device : &wgpu::Device,
         input_tx_views_b : &Vec<&TextureView>,
         output_tx_view : &TextureView,
-        status : Status,
+        status : &Status,
     ) -> ComputeModel{
 
         //this shader overmap source texture
@@ -46,7 +46,8 @@ impl ComputeModel {
 
         let key_lists = Vec::new();
 
-        let bindgroup_layout = bindgroup_layout_factory(device, status.source.frame_len());
+
+        let bindgroup_layout = bindgroup_layout_factory(device, sources_len(&status.source_infos.sources));
         
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -136,7 +137,7 @@ impl ComputeModel {
         input_tx_views_b : &Vec<&TextureView>,
         output_tx_view : &TextureView,
         device : &wgpu::Device,
-        status : &mut Status,
+        status : &Status,
     ) {
 
         /*
@@ -146,7 +147,7 @@ impl ComputeModel {
         ...
         */
 
-        let bindgroup_layout = bindgroup_layout_factory(device, status.source.frame_len());
+        let bindgroup_layout = bindgroup_layout_factory(device, sources_len(&status.source_infos.sources));
 
         let shader_module_add_source = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
@@ -235,84 +236,93 @@ impl ComputeModel {
 pub fn input_tx_views_factory (
     device : &wgpu::Device,
     queue : &wgpu::Queue,
-    status : Status,
+    status : &mut Status,
 ) -> Vec<wgpu::TextureView> {
 
     let mut input_tx_views = Vec::new();
 
-    for i in (status.source.from)..(status.source.to + 1){
+    let mut index = 0;
 
-        let file_name = format!("{}{}_00{}{}.{}",status.source.dir,status.source.filename,{
-            if i < 10 {"00"}
-            else if i < 100 {"0"}
-            else {""}
-        },i,status.source.extension);
+    for source in &status.source_infos.sources{
 
-        print!("\r\x1B[K");
-        print!("reading {}",file_name);
 
-        //prepare for input picture
-        let missing = image::open("./assets/missing.png").unwrap();
-        let diffuse_image = {
-            match image::open(file_name){
-                Ok(img) => {img}
-                _ => {
-                    missing
+        status.offset_id_map.insert(source.id, index);
+
+        for i in (source.from)..(source.to + 1){
+
+            let file_name = format!("{}{}_00{}{}.{}",source.dir,source.filename,{
+                if i < 10 {"00"}
+                else if i < 100 {"0"}
+                else {""}
+            },i,source.extension);
+    
+            print!("\r\x1B[K");
+            print!("reading {}",file_name);
+    
+            //prepare for input picture
+            let missing = image::open("./assets/missing.png").unwrap();
+            let diffuse_image = {
+                match image::open(file_name){
+                    Ok(img) => {img}
+                    _ => {
+                        missing
+                    }
                 }
-            }
-        };
-
-        let diffuse_rgba = diffuse_image.to_rgba8();
+            };
     
-        use image::GenericImageView;
-        let dimensions = diffuse_image.dimensions();
+            let diffuse_rgba = diffuse_image.to_rgba8();
+        
+            use image::GenericImageView;
+            let dimensions = diffuse_image.dimensions();
+        
+            let texture_size = wgpu::Extent3d {
+                width: dimensions.0,
+                height: dimensions.1,
+                depth_or_array_layers: 1,
+            };
+        
+            //create input texture for wgpu
+            let input_texture = device.create_texture(
+                &wgpu::TextureDescriptor {
+                    size: texture_size,
+                    mip_level_count: 1, // We'll talk about this a little later
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                    label: Some("input_texture"),
+                    view_formats: &vec![],
+                }
+            );
     
-        let texture_size = wgpu::Extent3d {
-            width: dimensions.0,
-            height: dimensions.1,
-            depth_or_array_layers: 1,
-        };
+            //read picture to texture
+            queue.write_texture(
+                // Tells wgpu where to copy the pixel data
+                wgpu::ImageCopyTexture {
+                    texture: &input_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                // The actual pixel data
+                &diffuse_rgba,
+                // The layout of the texture
+                wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * dimensions.0),
+                    rows_per_image: Some(dimensions.1),
+                },
+                texture_size,
+            );
+        
+            let input_texture_view = input_texture.create_view(&wgpu::TextureViewDescriptor::default());
     
-        //create input texture for wgpu
-        let input_texture = device.create_texture(
-            &wgpu::TextureDescriptor {
-                size: texture_size,
-                mip_level_count: 1, // We'll talk about this a little later
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                label: Some("input_texture"),
-                view_formats: &vec![],
-            }
-        );
+            input_tx_views.push(input_texture_view);
 
-        //read picture to texture
-        queue.write_texture(
-            // Tells wgpu where to copy the pixel data
-            wgpu::ImageCopyTexture {
-                texture: &input_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            // The actual pixel data
-            &diffuse_rgba,
-            // The layout of the texture
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * dimensions.0),
-                rows_per_image: Some(dimensions.1),
-            },
-            texture_size,
-        );
+            index += 1;
     
-        let input_texture_view = input_texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-        input_tx_views.push(input_texture_view);
-
+        }
     }
-
 
     input_tx_views
 

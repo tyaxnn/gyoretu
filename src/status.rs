@@ -1,4 +1,6 @@
 use crate::gui::WindowShowStatus;
+use crate::filters::{SourceInfo,LayerType,BgInfo,LayerId,LayerInfos};
+use std::collections::HashMap;
 
 #[derive(Debug, Copy, Clone)]
 pub enum PinPongStatus{
@@ -8,15 +10,17 @@ pub enum PinPongStatus{
 
 pub const GEN_BUFFER_SIZE : u64 = 20;
 pub const FIL_BUFFER_SIZE : u64 = 80;
+pub const FIRST_SOURCE_ID : usize = 1;
+pub const FIRST_BG_ID : usize = 2;
 
 
 //様々な用途の物が存在しているので、整理する必要がある。
 #[derive(Debug, Clone)]
 pub struct Status{
     //userが変更することを想定している
-    pub frame_len_max : u32,
-    pub frame_rate : u32,
-    pub source : Source,
+    pub setting : Setting,
+    pub source_infos : SourceInfos,
+    pub layer_infos : LayerInfos,
     pub win_show_status : WindowShowStatus,
     //userは変更しないが、内部情報として変化する。出力する必要がある
     pub elapsed_frame : u32,
@@ -26,6 +30,31 @@ pub struct Status{
     pub next_frame_index : u32,
     pub start_time : std::time::Instant,
     pub ping_pong : PinPongStatus,
+    pub update_input : bool,
+    pub offset_id_map : HashMap<SourceId, u32>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Setting{
+    pub frame_len : u32,
+    pub frame_rate : u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct SourceInfos{
+    pub sources : Vec<Source>,
+    pub id_last : SourceId
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
+pub struct SourceId{
+    pub num : usize
+}
+
+impl SourceId{
+    pub fn new(num : usize) -> SourceId{
+        SourceId{num}
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -36,12 +65,34 @@ pub struct Source{
     pub from : u32,
     pub to : u32,
     pub extension : String,
+    pub id : SourceId,
 }
 
 impl Source{
-    pub fn frame_len(&self) -> u32 {
-        self.to + 1 -  self.from 
+    pub fn new(id : SourceId) -> Source {
+        Source{
+            dir : "./assets/".to_string(),
+            filename : "".to_string(),
+            digit : 5,
+            from : 0,
+            to : 10,
+            extension : "png".to_string(),
+            id,
+        }
     }
+    pub fn frame_len(&self) -> u32 {
+        self.to + 1 - self.from 
+    }
+}
+
+pub fn sources_len(sources : &Vec<Source>) -> u32{
+
+    let mut sum = 0;
+    for source in sources{
+        sum += source.frame_len()
+    }
+
+    sum
 }
 
 impl Status {
@@ -54,30 +105,54 @@ impl Status {
         let ping_pong = PinPongStatus::F1T2;
         let (mov_width,mov_height) = (1920,1080);
         let win_show_status = WindowShowStatus::Source;
+
+        let offset_id_map = HashMap::new();
+
         let source = Source{
-            dir : "./assets/dendrite/".to_string(),
+            dir : "./assets/dendrite".to_string(),
             filename : "dendrite".to_string(),
             digit : 5,
             from : 0,
-            to : 100,
+            to : 10,
             extension : "png".to_string(),
+            id : SourceId::new(FIRST_SOURCE_ID),
         };
 
-        let frame_len_max = source.frame_len();
+        let frame_len = source.frame_len();
+
+        let setting = Setting{frame_len, frame_rate};
+
+        let sources = vec![source];
+        let id_last = SourceId::new(FIRST_SOURCE_ID);
+
+        let source_infos = SourceInfos{sources,id_last};
+
+        let update_input = false;
+
+        let ini_source = LayerType::Source(SourceInfo::new(LayerId::new(FIRST_SOURCE_ID), SourceId::new(FIRST_SOURCE_ID), 0));
+
+        let types = vec![LayerType::Bg(BgInfo::new(LayerId::new(FIRST_BG_ID))),ini_source];
+        let id_last = LayerId{num : types.len()};
+
+        let layer_infos = LayerInfos{
+            types,
+            id_last,
+        };
 
         Status{
-            //buffer_size,
-            frame_len_max,
-            frame_rate,
+            setting,
             elapsed_frame,
             next_frame_index,
             start_time,
             ping_pong,
-            //filterinfo_size,
             mov_width,
             mov_height,
             win_show_status,
-            source,
+            source_infos,
+            update_input,
+            offset_id_map,
+            layer_infos,
         }
     } 
 }
+
