@@ -20,6 +20,8 @@ egui = "0.28"
 egui-winit = "0.28"
 egui-wgpu = "0.28"
 egui_extras = "0.28"
+num = "0.4.3"
+chrono = "0.4"
 
 [dependencies.image]
 version = "0.24"

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use wgpu::{util::DeviceExt, BindGroup, BindingResource, BufferUsages, Extent3d, TextureView};
 
-use crate::status::{Status,GEN_BUFFER_SIZE,FIL_BUFFER_SIZE,sources_len};
+use crate::status::{Status,GEN_BUFFER_SIZE,FIL_BUFFER_SIZE,sources_len,SourceIdentity};
 
 pub struct ComputeModel{
     pub pipeline_add_source : wgpu::ComputePipeline,
@@ -41,7 +41,7 @@ impl ComputeModel {
 
         let shader_module_bg = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
-            source: wgpu::ShaderSource::Wgsl(include_str!("bg.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("clear.wgsl").into()),
         });
 
         let key_lists = Vec::new();
@@ -131,7 +131,6 @@ impl ComputeModel {
     }
 
     //recreate computemodel : new input texture
-    //もっと簡潔に書きたい。
     pub fn update_inputs (
         &mut self, 
         input_tx_views_b : &Vec<&TextureView>,
@@ -156,7 +155,7 @@ impl ComputeModel {
 
         let shader_module_bg = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
-            source: wgpu::ShaderSource::Wgsl(include_str!("bg.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("clear.wgsl").into()),
         });
 
         let paths = fs::read_dir("./src/filters/").unwrap();
@@ -164,7 +163,7 @@ impl ComputeModel {
         let mut shader_modules = Vec::new();
 
         let mut key_lists = Vec::new();
-
+        
         for path in paths {
             let pathbuf = path.unwrap().path();
             let key = pathbuf.file_stem().unwrap().to_str().unwrap().to_string();
@@ -182,6 +181,7 @@ impl ComputeModel {
             shader_modules.push(KeyShaderModule{key,shader_module});
             
         }
+        
 
         self.key_lists = key_lists;
 
@@ -246,7 +246,7 @@ pub fn input_tx_views_factory (
     for source in &status.source_infos.sources{
 
 
-        status.offset_id_map.insert(source.id, index);
+        status.offset_id_map.insert(source.id, SourceIdentity::new(index,source.frame_len()));
 
         for i in (source.from)..(source.to + 1){
 
@@ -329,10 +329,10 @@ pub fn input_tx_views_factory (
 
 }
 
-pub fn output_tx_view_factory(
+pub fn output_tx_factory(
     device : &wgpu::Device,
     status : Status,
-) -> wgpu::TextureView{
+) -> wgpu::Texture{
     let output_texture = device.create_texture(&wgpu::TextureDescriptor {
         label: None,
         size: Extent3d {
@@ -344,10 +344,12 @@ pub fn output_tx_view_factory(
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING |
+        wgpu::TextureUsages::COPY_SRC |
+        wgpu::TextureUsages::RENDER_ATTACHMENT,
         view_formats: &vec![]
     });
-    output_texture.create_view(&Default::default())
+    output_texture
 }
 
 fn bind_group_factory(

@@ -5,17 +5,9 @@ struct Status {
     spare_1 : u32,
     spare_2 : f32,
 };
-
 struct Parameter {
-    s : f32,
-    r1 : f32,
-    g1 : f32,
-    b1 : f32,
-    a1 : f32,
-    r2 : f32,
-    g2 : f32,
-    b2 : f32,
-    a2 : f32,
+    seed_w : f32,
+    seed_h : f32,
 }
 
 
@@ -28,14 +20,10 @@ struct Parameter {
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
-    var color : vec4<f32> = vec4<f32>(parameter.r1,parameter .g1,parameter.b1, parameter.a1);
+    var color : vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
 
-    let new_y = status.height - global_id.y - 1;
-
-    let mono_color_f = dot(intermediate_r[index_xy(global_id.xy)].xyz,vec3<f32>(1./3.,1./3.,1./3.));
-
-    if mono_color_f > parameter.s{
-        color = vec4<f32>(parameter.r2,parameter .g2,parameter.b2, parameter.a2);
+    if global_id.x != u32(parameter.seed_w) || global_id.y != u32(parameter.seed_h) {
+        color = intermediate_r[index_xy(global_id.xy)];
     }
     
     intermediate_w[index_xy(global_id.xy)] = color;

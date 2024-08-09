@@ -15,6 +15,15 @@ use control_filter::gui_filters;
 mod control_source;
 use control_source::gui_source;
 
+mod control_setting;
+use control_setting::gui_setting;
+
+mod control_info;
+use control_info::gui_info;
+
+mod control_write;
+use control_write::gui_write;
+
 pub struct EguiRenderer {
     pub context: Context,
     state: State,
@@ -111,6 +120,9 @@ impl EguiRenderer {
 pub enum WindowShowStatus{
     Source,
     Filter,
+    Setting,
+    Info,
+    Write,
 }
 
 pub fn gui (ui: &Context, status : &mut Status, key_lists : &mut Vec<String>) {
@@ -126,6 +138,9 @@ pub fn gui (ui: &Context, status : &mut Status, key_lists : &mut Vec<String>) {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut status.win_show_status, WindowShowStatus::Source, "Source");
                 ui.selectable_value(&mut status.win_show_status, WindowShowStatus::Filter, "Filter");
+                ui.selectable_value(&mut status.win_show_status, WindowShowStatus::Setting, "Setting");
+                ui.selectable_value(&mut status.win_show_status, WindowShowStatus::Info, "Info");
+                ui.selectable_value(&mut status.win_show_status, WindowShowStatus::Write, "Write");
             });
 
             ui.add(egui::Separator::default());
@@ -135,9 +150,18 @@ pub fn gui (ui: &Context, status : &mut Status, key_lists : &mut Vec<String>) {
                     gui_source(ui, status)
                 }
                 WindowShowStatus::Filter => {
-
                     gui_filters(ui, key_lists, status)
                 }
+                WindowShowStatus::Setting => {
+                    gui_setting(ui, &mut status.setting)
+                }
+                WindowShowStatus::Info => {
+                    gui_info(ui, & status)
+                }
+                WindowShowStatus::Write => {
+                    gui_write(ui, status)
+                }
+
             }
 
 

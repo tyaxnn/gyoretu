@@ -25,7 +25,6 @@ pub fn gui_filters (ui: &mut egui::Ui, key_lists : &Vec<String>, status : &mut S
 
             for source in &status.source_infos.sources{
                 if ui.button(format!("# {}",source.id.num)).clicked() {
-
                     status.layer_infos.id_last.num += 1;
                     status.layer_infos.types.push(LayerType::Source(SourceInfo::new(status.layer_infos.id_last,source.id, source.frame_len())));
                     ui.close_menu();
@@ -83,6 +82,8 @@ pub fn gui_filters (ui: &mut egui::Ui, key_lists : &Vec<String>, status : &mut S
                             .id_source(format!("{}",source_info.id.num)).default_open(true)
                             .show(ui, |ui| {    
                         ui.add(egui::Slider::new(&mut source_info.offset, 0..= status.setting.frame_len).text("offset"));
+
+                        ui.add(egui::Slider::new(&mut source_info.alpha, 0f32..= 1f32).text("alpha"));
                     });
                 }
                 LayerType::Filter(filter_info) => {
@@ -124,19 +125,19 @@ pub fn gui_filters (ui: &mut egui::Ui, key_lists : &Vec<String>, status : &mut S
                                 for p_info in &filter_info.label{
         
                                     match p_info.ptype {
-                                        Ptype::Integer => {
-                                            let mut value= (f32::from_bits(filter_info.parameter[count]) * 256.) as u32;
+                                        Ptype::Integer(range) => {
+                                            let mut value= (f32::from_bits(filter_info.parameter[count])) as u32;
         
-                                            ui.add(egui::Slider::new(&mut value, 0..=255).text(&p_info.plabel));
+                                            ui.add(egui::Slider::new(&mut value, range.from..=range.to).text(&p_info.plabel));
                             
-                                            filter_info.parameter[count] = (value as f32 / 256.).to_bits();
+                                            filter_info.parameter[count] = (value as f32).to_bits();
         
                                             count += 1;
                                         }
-                                        Ptype::Float => {
+                                        Ptype::Float(range) => {
                                             let mut value= f32::from_bits(filter_info.parameter[count]);
         
-                                            ui.add(egui::Slider::new(&mut value, 0f32..=1f32).text(&p_info.plabel));
+                                            ui.add(egui::Slider::new(&mut value, range.from..=range.to).text(&p_info.plabel));
                             
                                             filter_info.parameter[count] = value.to_bits();
         
@@ -166,6 +167,34 @@ pub fn gui_filters (ui: &mut egui::Ui, key_lists : &Vec<String>, status : &mut S
         
                                             count += 3;
                                         }
+                                        Ptype::Color4 => {
+                                            let r= f32::from_bits(filter_info.parameter[count]);
+        
+                                            let g= f32::from_bits(filter_info.parameter[count + 1]);
+        
+                                            let b= f32::from_bits(filter_info.parameter[count + 2]);
+
+                                            let mut a= f32::from_bits(filter_info.parameter[count + 3]);
+        
+                                            let mut rgb = [r, g, b];
+        
+                                            ui.horizontal(|ui| {
+                                                egui::widgets::color_picker::color_edit_button_rgb(ui,&mut rgb);
+
+                                                ui.add(egui::Slider::new(&mut a, 0f32..=1f32).text(&p_info.plabel));
+                                            });
+        
+        
+                                            filter_info.parameter[count] = rgb[0].to_bits();
+        
+                                            filter_info.parameter[count + 1] = rgb[1].to_bits();
+        
+                                            filter_info.parameter[count + 2] = rgb[2].to_bits();
+
+                                            filter_info.parameter[count + 3] = a.to_bits();
+        
+                                            count += 4;
+                                        }
                                     }
                 
                                     
@@ -173,54 +202,6 @@ pub fn gui_filters (ui: &mut egui::Ui, key_lists : &Vec<String>, status : &mut S
                             }
                         );
                     }
-                }
-                LayerType::Bg(bg_info) => {
-                    ui.horizontal(|ui| {
-                        ui.checkbox(&mut bg_info.active, "");
-
-                        ui.label(format!("Back ground"));
-                    });
-
-                    ui.horizontal(|ui| {
-        
-                        if ui.button("up").clicked() {
-                            if i != filter_infos_len-1{
-                                swap_lists.push((i,i+1));
-                            }
-                        }
-                        else if ui.button("down").clicked() {
-                            if i != 0{
-                                swap_lists.push((i,i-1));
-                            }
-                        }
-                    });
-
-                    egui::CollapsingHeader::new("")
-                            .id_source(format!("bg{}",bg_info.id.num)).default_open(true)
-                            .show(ui, |ui| {
-
-                        let r= f32::from_bits(bg_info.parameter[0]);
-
-                        let g= f32::from_bits(bg_info.parameter[1]);
-
-                        let b= f32::from_bits(bg_info.parameter[2]);
-
-                        let mut rgb = [r, g, b];
-
-                        ui.horizontal(|ui| {
-                            egui::widgets::color_picker::color_edit_button_rgb(ui,&mut rgb);
-
-                            ui.label("Back ground color");
-                        });
-
-
-                        bg_info.parameter[0] = rgb[0].to_bits();
-
-                        bg_info.parameter[1] = rgb[1].to_bits();
-
-                        bg_info.parameter[2] = rgb[2].to_bits();
-
-                    });
                 }
             }
 

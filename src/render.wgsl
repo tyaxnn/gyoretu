@@ -11,7 +11,7 @@ fn vs_main(
     var out: VertexOutput;
     let x = f32((in_vertex_index & 1u) ^ in_instance_index);
     let y = f32((in_vertex_index >> 1u) ^ in_instance_index);
-    out.position = vec4<f32>(x * 2.0 - 1.0, 1. - y * 4.0/3.0, 0.0, 1.0);
+    out.position = vec4<f32>(x * 2. - 1.0, 1. - y * 4./3., 0.0, 1.0);
     out.tex_coord = vec2<f32>(x, y);
     return out;
 }
@@ -25,3 +25,4 @@ var r_sampler: sampler;
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     return textureSample(r_color, r_sampler, in.tex_coord);
 }
+

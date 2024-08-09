@@ -12,6 +12,7 @@ mod render;
 mod status;
 mod filters;
 mod gui;
+mod write;
 
 use model::Model;
 use status::Status;
@@ -29,7 +30,7 @@ pub async fn run() {
         .with_inner_size(PhysicalSize::new(WIDTH, HEIGHT))
         .with_title("gyoretu")
         .with_window_icon(Some(Icon::from_rgba({
-            let icon_bytes = include_bytes!("../assets/icons/icon_m.png");
+            let icon_bytes = include_bytes!("../assets/icons/icon_d.png");
             let icon_image = image::load_from_memory(icon_bytes).unwrap();
             let diffuse_rgba = icon_image.to_rgba8().into_raw();
 
@@ -106,6 +107,7 @@ pub async fn run() {
                                 }
 
                                 model.update_post();
+                                model.write()
                             }
                             _ => {}
                         

@@ -6,37 +6,18 @@ struct Status {
     spare_2 : f32,
 };
 
-struct Parameter {
-    s : f32,
-    r1 : f32,
-    g1 : f32,
-    b1 : f32,
-    a1 : f32,
-    r2 : f32,
-    g2 : f32,
-    b2 : f32,
-    a2 : f32,
-}
-
 
 @group(0) @binding(0) var<uniform> status: Status;
 @group(0) @binding(1) var outputTex: texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(3) var<storage, read> intermediate_r: array<vec4<f32>>;
 @group(0) @binding(4) var<storage, read_write> intermediate_w: array<vec4<f32>>;
-@group(0) @binding(5) var<uniform> parameter: Parameter;
 
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
-    var color : vec4<f32> = vec4<f32>(parameter.r1,parameter .g1,parameter.b1, parameter.a1);
+    let offset = (intermediate_r[index_x_y(status.width-1,global_id.y)] - intermediate_r[index_x_y(u32(0),global_id.y)]) / f32(status.width);
 
-    let new_y = status.height - global_id.y - 1;
-
-    let mono_color_f = dot(intermediate_r[index_xy(global_id.xy)].xyz,vec3<f32>(1./3.,1./3.,1./3.));
-
-    if mono_color_f > parameter.s{
-        color = vec4<f32>(parameter.r2,parameter .g2,parameter.b2, parameter.a2);
-    }
+    let color = intermediate_r[index_xy(global_id.xy)] + offset * f32(global_id.x);
     
     intermediate_w[index_xy(global_id.xy)] = color;
         

@@ -1,4 +1,4 @@
-use crate::status::{Status,Source};
+use crate::status::{Status,Source,MAX_SAMPLED_TEXTURES_PER_SHADER_STAGE};
 
 pub fn gui_source(ui: &mut egui::Ui, status : &mut Status) {
 
@@ -11,6 +11,8 @@ pub fn gui_source(ui: &mut egui::Ui, status : &mut Status) {
 
     let sources = &mut status.source_infos.sources;
 
+    let mut number_of_sources = 0;
+
     egui::ScrollArea::vertical().show(ui, |ui| {
 
         ui.separator();
@@ -18,7 +20,7 @@ pub fn gui_source(ui: &mut egui::Ui, status : &mut Status) {
         for i in 0..sources.len(){
             ui.label(format!("Source #{}",sources[i].id.num));
             ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut sources[i].dir).hint_text("Write something here").desired_width(200.));
+                ui.add(egui::TextEdit::singleline(&mut sources[i].dir).hint_text("Write something here").desired_width(300.));
         
                 ui.add(egui::TextEdit::singleline(&mut sources[i].filename).hint_text("Write something here").desired_width(100.));
                 ui.label("_#");
@@ -49,26 +51,33 @@ pub fn gui_source(ui: &mut egui::Ui, status : &mut Status) {
         
                 match from_string.parse::<u32>(){
                     Ok(int) => {
-                        sources[i].from = int
+                        sources[i].from = int;
                     }
                     _ => {}
                 }
         
                 match to_string.parse::<u32>(){
                     Ok(int) => {
-                        sources[i].to = int
+                        sources[i].to = int;
                     }
                     _ => {}
                 }
             });
-        
-            if ui.button("import").clicked() {
-                //create input_texture_views
-                //  load images here
-                
-                status.update_input = true;
-                
+
+            number_of_sources += sources[i].frame_len();
+        }
+
+        if ui.button("import").clicked() {
+            //create input_texture_views
+            //  load images here
+
+            //in order not to crash the app, check how many sources 
+            if number_of_sources > MAX_SAMPLED_TEXTURES_PER_SHADER_STAGE{
+                println!("too many sources !")
             }
+            else{
+                status.update_input = true;
+            } 
         }
     });
 }
