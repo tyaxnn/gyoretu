@@ -7,11 +7,9 @@ struct Status {
 };
 
 struct Parameter {
-    r_mul : f32,
-    theta_offset : f32,
+    displacement_x : f32,
+    displacement_y : f32,
 }
-
-const PI: f32 = 3.141592653;
 
 
 @group(0) @binding(0) var<uniform> status: Status;
@@ -28,20 +26,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let w = f32(status.width);
     let h = f32(status.height);
 
-    let r = sqrt(square(x - w/2.) + square(-y + h/2.));
-    let theta = atan2(-y+h/2.,x-w/2.);
+    let map_color = intermediate_r[index_xy(global_id.xy)];
 
-    var x_prime = (theta + 2. * PI * parameter.theta_offset)/(2. * PI) * w;
-
-    if x_prime > w{
-        x_prime -= w;
-    }
-    else if x_prime < 0{
-        x_prime += w;
-    }
-    let y_prime = r / (0.0001 + parameter.r_mul);
-
-    let color = anti_aliasing(x_prime,y_prime);
+    let new_x = x + parameter.displacement_x * (map_color.x - 0.5);
+    let new_y = y + parameter.displacement_y * (map_color.y - 0.5);
+    
+    let color = anti_aliasing(new_x,new_y);
 
     intermediate_w[index_xy(global_id.xy)] = color;
         
@@ -55,6 +45,15 @@ fn index_xy(v : vec2<u32>) -> u32 {
 
 fn index_x_y(x : u32, y : u32) -> u32 {
     return x + y * status.width;
+}
+
+fn is_ranged(x : u32, y : u32) -> bool {
+    if 0 <= x && x <= status.width && 0 <= y && y <= status.height{
+        return true;
+    }
+    else{
+        return false;
+    }
 }
 
 fn anti_aliasing(x : f32, y : f32) -> vec4<f32> {
@@ -91,17 +90,4 @@ fn anti_aliasing(x : f32, y : f32) -> vec4<f32> {
         return o_11 * s * t + o_10 * s * (1.-t) + o_01 * (1.-s) * t + o_00 * (1.-s) * (1.-t);
     }
 
-}
-
-fn is_ranged(x : u32, y : u32) -> bool {
-    if 0 <= x && x <= status.width && 0 <= y && y <= status.height{
-        return true;
-    }
-    else{
-        return false;
-    }
-}
-
-fn square(x : f32) -> f32 {
-    return x * x;
 }

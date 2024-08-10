@@ -10,9 +10,11 @@ struct Parameter {
     r1 : f32,
     g1 : f32,
     b1 : f32,
+    a1 : f32,
     r2 : f32,
     g2 : f32,
     b2 : f32,
+    a2 : f32,
 }
 
 
@@ -25,7 +27,7 @@ struct Parameter {
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
-    var color : vec4<f32> = vec4<f32>(parameter.r1,parameter.g1,parameter.b1, 1.0);
+    var color : vec4<f32> = vec4<f32>(parameter.r1,parameter.g1,parameter.b1, parameter.a1);
 
     let mono_color_f = dot(intermediate_r[index_xy(global_id.xy)].xyz,vec3<f32>(1./3.,1./3.,1./3.));
 
@@ -34,7 +36,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let idx = global_id.x % 4 * 4 + global_id.y % 4;
 
     if u32(mono_color_f * 256.) > 16 * bayer_16[idx]{
-        color = vec4<f32>(parameter.r2, parameter.g2,parameter.b2, 1.0);
+        color = vec4<f32>(parameter.r2, parameter.g2,parameter.b2, parameter.a2);
     }
     
     intermediate_w[index_xy(global_id.xy)] = color;

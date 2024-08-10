@@ -2,7 +2,9 @@ use crate::gui::WindowShowStatus;
 use crate::filters::{SourceInfo,LayerType,LayerId,LayerInfos};
 use std::collections::HashMap;
 
-#[derive(Debug, Copy, Clone)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum PinPongStatus{
     F1T2,
     F2T1,
@@ -16,7 +18,7 @@ pub const FIRST_SOURCE_ID : usize = 1;
 
 
 //様々な用途の物が存在しているので、整理する必要がある。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Status{
     //userが変更することを想定している
     pub setting : Setting,
@@ -25,6 +27,7 @@ pub struct Status{
     pub win_show_status : WindowShowStatus,
     pub mode : Mode,
     pub output_setting : OutputSetting,
+    pub project_name : String,
     //userは変更しないが、内部情報として変化する。出力する必要がある
     pub elapsed_frame : u32,
     pub previous_elapsed_frame : u32,
@@ -34,25 +37,24 @@ pub struct Status{
     //userは変更しないが、内部情報として変化する。出力する必要はない。
     pub next_frame_index : u32,
     pub one_before_frame_index : u32,
-    pub start_time : std::time::Instant,
     pub previous_elapsed_time : f32,
     pub ping_pong : PinPongStatus,
     pub update_input : bool,
     pub offset_id_map : HashMap<SourceId, SourceIdentity>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutputSetting{
     pub filename : String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Mode{
     Preview,
     Render(u32),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceIdentity{
     pub offset_array_texture : u32,
     pub len : u32,
@@ -67,20 +69,20 @@ impl SourceIdentity{
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Setting{
     pub frame_len : u32,
     pub frame_rate : u32,
     pub clear_intensity : f32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceInfos{
     pub sources : Vec<Source>,
     pub id_last : SourceId
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy, Serialize, Deserialize)]
 pub struct SourceId{
     pub num : usize
 }
@@ -91,7 +93,7 @@ impl SourceId{
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Source{
     pub dir : String,
     pub filename : String,
@@ -142,7 +144,6 @@ impl Status {
         let previous_elapsed_frame = 0;
         let next_frame_index = 0;
         let one_before_frame_index = 0;
-        let start_time = std::time::Instant::now();
         let previous_elapsed_time = 0f32;
         let ping_pong = PinPongStatus::F1T2;
         let (mov_width,mov_height) = (1920,1080);
@@ -152,11 +153,11 @@ impl Status {
         let offset_id_map = HashMap::new();
 
         let source = Source{
-            dir : "./assets/".to_string(),
-            filename : "seed".to_string(),
+            dir : "./assets/dendrite/".to_string(),
+            filename : "dendrite".to_string(),
             digit : 5,
             from : 0,
-            to : 0,
+            to : 100,
             extension : "png".to_string(),
             id : SourceId::new(FIRST_SOURCE_ID),
         };
@@ -188,13 +189,14 @@ impl Status {
 
         let output_setting = OutputSetting{filename : "image".to_string()};
 
+        let project_name = "untitled".to_string();
+
         Status{
             setting,
             elapsed_frame,
             previous_elapsed_frame,
             next_frame_index,
             one_before_frame_index,
-            start_time,
             previous_elapsed_time,
             ping_pong,
             mov_width,
@@ -207,6 +209,7 @@ impl Status {
             layer_infos,
             mode,
             output_setting,
+            project_name,
         }
     } 
 }

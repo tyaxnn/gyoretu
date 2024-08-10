@@ -1,20 +1,22 @@
 use crate::status::SourceId;
 use num::Num;
 
-#[derive(Debug, Clone)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LayerInfos{
     pub types : Vec<LayerType>,
     pub id_last : LayerId
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LayerType {
     Source(SourceInfo),
     Filter(FilterInfo),
 
 }
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct LayerId{
     pub num : usize,
 }
@@ -25,7 +27,7 @@ impl LayerId{
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceInfo {
     pub id : LayerId,
     pub active : bool,
@@ -48,7 +50,7 @@ impl SourceInfo {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FilterInfo {
     pub key : String,
     pub parameter : [u32; 20],
@@ -82,22 +84,26 @@ impl FilterInfo {
             },
             "threshold" => {
                 init[0] = (0.5f32).to_bits();
-                init[1] = (0f32).to_bits();
-                init[2] = (0f32).to_bits();
-                init[3] = (0f32).to_bits();
-                init[4] = (1f32).to_bits();
-                init[5] = (1f32).to_bits();
-                init[6] = (1f32).to_bits();
+                init[1] = (1f32).to_bits();
+                init[2] = (1f32).to_bits();
+                init[3] = (1f32).to_bits();
+                init[3] = (1f32).to_bits();
+                init[4] = (0f32).to_bits();
+                init[5] = (0f32).to_bits();
+                init[6] = (0f32).to_bits();
+                init[6] = (0f32).to_bits();
                 FilterInfo{key : key_str.to_string(), parameter : init, label : vec![Pinfo::new(Ptype::Float(ran_f_ini),"threshold"),Pinfo::new(Ptype::Color4,"color1"),Pinfo::new(Ptype::Color4,"color2")],id, active}
             },
             "bayer_16" => {
-                init[0] = (0f32).to_bits();
-                init[1] = (0f32).to_bits();
-                init[2] = (0f32).to_bits();
+                init[0] = (1f32).to_bits();
+                init[1] = (1f32).to_bits();
+                init[2] = (1f32).to_bits();
                 init[3] = (1f32).to_bits();
-                init[4] = (1f32).to_bits();
-                init[5] = (1f32).to_bits();
-                FilterInfo{key : key_str.to_string(), parameter : init, label : vec![Pinfo::new(Ptype::Color3,"color1"),Pinfo::new(Ptype::Color3,"color2")],id, active}
+                init[4] = (0f32).to_bits();
+                init[5] = (0f32).to_bits();
+                init[6] = (0f32).to_bits();
+                init[7] = (0f32).to_bits();
+                FilterInfo{key : key_str.to_string(), parameter : init, label : vec![Pinfo::new(Ptype::Color4,"color1"),Pinfo::new(Ptype::Color4,"color2")],id, active}
             },
             "bg" => {
                 init[0] = (0f32).to_bits();
@@ -108,9 +114,6 @@ impl FilterInfo {
             }
             "polar_coordinate" => {
                 FilterInfo{key : key_str.to_string(), parameter : init, label : vec![Pinfo::new(Ptype::Float(ran_f_ini),"radius max"),Pinfo::new(Ptype::Float(ran_f_ini),"theta_offset")],id, active }
-            }
-            "edge_offset" => {
-                FilterInfo{key : key_str.to_string(), parameter : init, label : vec![],id, active }
             }
             "peter_de_jong" => {
                 init[0] = (1.641f32).to_bits();
@@ -162,12 +165,21 @@ impl FilterInfo {
             "seed" => {
                 FilterInfo{key : key_str.to_string(), parameter : init, label : vec![Pinfo::new(Ptype::Integer(Range::new(0,1919)),"seed_w"),Pinfo::new(Ptype::Integer(Range::new(0,1079)),"seed_h")],id, active }
             }
+            "displacement_map" => {
+                FilterInfo{key : key_str.to_string(), parameter : init, label : vec![
+                    Pinfo::new(Ptype::Float(Range::new(-5000f32,5000f32)),"displacement x"),
+                    Pinfo::new(Ptype::Float(Range::new(-5000f32,5000f32)),"displacement y"),
+                ],id, active }
+            }
+            "clear_old_buffer" => {
+                FilterInfo{key : key_str.to_string(), parameter : init, label : vec![],id, active }
+            }
             _ => {panic!("{} doesn't exist",key_str )}
         }
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone, Serialize, Deserialize)]
 pub enum Ptype {
     Integer(Range<u32>),
     Float(Range<f32>),
@@ -175,7 +187,7 @@ pub enum Ptype {
     Color4,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone, Serialize, Deserialize)]
 pub struct Pinfo {
     pub ptype : Ptype,
     pub plabel : String,
@@ -188,7 +200,7 @@ impl Pinfo{
     }
 }
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Range<N : Num> {
     pub from : N,
     pub to : N,

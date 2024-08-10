@@ -7,6 +7,8 @@ use wgpu::{CommandEncoder, Device, Queue, TextureFormat, TextureView};
 use winit::event::WindowEvent;
 use winit::window::Window;
 
+use serde::{Serialize, Deserialize};
+
 use crate::status::Status;
 
 mod control_filter;
@@ -23,6 +25,9 @@ use control_info::gui_info;
 
 mod control_write;
 use control_write::gui_write;
+
+mod control_save;
+use control_save::gui_save;
 
 pub struct EguiRenderer {
     pub context: Context,
@@ -116,13 +121,14 @@ impl EguiRenderer {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub enum WindowShowStatus{
     Source,
     Filter,
     Setting,
     Info,
     Write,
+    Save,
 }
 
 pub fn gui (ui: &Context, status : &mut Status, key_lists : &mut Vec<String>) {
@@ -141,6 +147,7 @@ pub fn gui (ui: &Context, status : &mut Status, key_lists : &mut Vec<String>) {
                 ui.selectable_value(&mut status.win_show_status, WindowShowStatus::Setting, "Setting");
                 ui.selectable_value(&mut status.win_show_status, WindowShowStatus::Info, "Info");
                 ui.selectable_value(&mut status.win_show_status, WindowShowStatus::Write, "Write");
+                ui.selectable_value(&mut status.win_show_status, WindowShowStatus::Save, "Save");
             });
 
             ui.add(egui::Separator::default());
@@ -156,10 +163,13 @@ pub fn gui (ui: &Context, status : &mut Status, key_lists : &mut Vec<String>) {
                     gui_setting(ui, &mut status.setting)
                 }
                 WindowShowStatus::Info => {
-                    gui_info(ui, & status)
+                    gui_info(ui, status)
                 }
                 WindowShowStatus::Write => {
                     gui_write(ui, status)
+                }
+                WindowShowStatus::Save => {
+                    gui_save(ui, status)
                 }
 
             }

@@ -1,4 +1,3 @@
-use core::panic;
 use std::fs;
 use wgpu::util::DeviceExt;
 use wgpu::BufferUsages;
@@ -35,6 +34,8 @@ pub struct Model<'a>{
     pub output_buffer : wgpu::Buffer,
 
     pub save_dir : String,
+
+    pub start_time : std::time::Instant,
 }
 
 pub struct WindowChildren<'a> {
@@ -179,6 +180,8 @@ impl<'a> Model<'a> {
         let output_buffer = output_buffer_factory(&pv.device, &status);
 
         let save_dir = "untitled".to_string();
+
+        let start_time = std::time::Instant::now();
         
         /*------------------------------------
                 Return Model
@@ -194,6 +197,7 @@ impl<'a> Model<'a> {
             output_tx,
             output_buffer,
             save_dir,
+            start_time,
         }
     }
 
@@ -209,7 +213,7 @@ impl<'a> Model<'a> {
     
     //update status
     pub fn update_pre(&mut self) {
-        let elapsed_time: f32 = 0.5 + self.status.start_time.elapsed().as_micros() as f32 * 1e-6;
+        let elapsed_time: f32 = 0.5 + self.start_time.elapsed().as_micros() as f32 * 1e-6;
 
         //store previous frame
         self.status.one_before_frame_index = self.status.next_frame_index;
@@ -279,7 +283,7 @@ impl<'a> Model<'a> {
                                 source_infos.len = identity.len;
                             }
                             None => {
-                                panic!("No such a source id");
+                                // /panic!("No such a source id");
                             }
                         };
                     }
@@ -433,11 +437,31 @@ impl<'a> Model<'a> {
                             });
             
                             encoder.copy_buffer_to_buffer(&parameter_buffer_host, 0, &self.compute_model.filterinfo_buffer, 0, FIL_BUFFER_SIZE);
+
+
+                            //clear old information
+                            {
+                                let pipeline = self.compute_model.pipelines.get("clear_old_buffer").unwrap();
+                                
+                                let mut compute_pass = encoder.begin_compute_pass(&Default::default());
+                                compute_pass.set_pipeline(pipeline);
+
+                                match self.status.ping_pong{
+                                    PinPongStatus::F2T1 => {
+                                        compute_pass.set_bind_group(0, &self.compute_model.bindgroup_even, &[]);
+                                    }
+                                    PinPongStatus::F1T2 => {
+                                        compute_pass.set_bind_group(0, &self.compute_model.bindgroup_odd, &[]);
+                                    }
+                                }
+                            }
                             
                             {
                                 let pipeline = self.compute_model.pipelines.get(&infos.key).unwrap();
                                 let mut compute_pass = encoder.begin_compute_pass(&Default::default());
                                 compute_pass.set_pipeline(pipeline);
+
+                                
                                 
                                 match self.status.ping_pong{
                                     PinPongStatus::F2T1 => {

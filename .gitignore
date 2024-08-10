@@ -1,2 +1,3 @@
 /target
-/assets/outputs
+/assets/outputs/*
+/assets/save/*
