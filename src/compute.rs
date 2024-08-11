@@ -7,6 +7,8 @@ use wgpu::{util::DeviceExt, BindGroup, BindingResource, BufferUsages, Extent3d, 
 
 use crate::status::{Status,GEN_BUFFER_SIZE,FIL_BUFFER_SIZE,sources_len,SourceIdentity};
 
+use crate::util::num_to_seqstr;
+
 pub struct ComputeModel{
     pub pipeline_add_source : wgpu::ComputePipeline,
     pub pipeline_bg : wgpu::ComputePipeline,
@@ -250,11 +252,7 @@ pub fn input_tx_views_factory (
 
         for i in (source.from)..(source.to + 1){
 
-            let file_name = format!("{}{}_00{}{}.{}",source.dir,source.filename,{
-                if i < 10 {"00"}
-                else if i < 100 {"0"}
-                else {""}
-            },i,source.extension);
+            let file_name = format!("{}\\{}{}.{}",source.dir,source.filename,num_to_seqstr(i, source.digit),source.extension);
     
             print!("\r\x1B[K");
             print!("reading {}",file_name);

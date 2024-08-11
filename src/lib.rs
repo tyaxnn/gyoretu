@@ -13,6 +13,7 @@ mod status;
 mod filters;
 mod gui;
 mod write;
+mod util;
 
 use model::Model;
 use status::Status;

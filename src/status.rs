@@ -107,7 +107,7 @@ pub struct Source{
 impl Source{
     pub fn new(id : SourceId) -> Source {
         Source{
-            dir : "./assets/".to_string(),
+            dir : ".\\assets".to_string(),
             filename : "".to_string(),
             digit : 5,
             from : 0,
@@ -153,7 +153,7 @@ impl Status {
         let offset_id_map = HashMap::new();
 
         let source = Source{
-            dir : "./assets/dendrite/".to_string(),
+            dir : ".\\assets\\dendrite".to_string(),
             filename : "dendrite".to_string(),
             digit : 5,
             from : 0,
