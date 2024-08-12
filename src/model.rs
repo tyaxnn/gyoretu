@@ -36,6 +36,8 @@ pub struct Model<'a>{
     pub save_dir : String,
 
     pub start_time : std::time::Instant,
+
+    //pub sink : rodio::Sink,
 }
 
 pub struct WindowChildren<'a> {
@@ -182,7 +184,6 @@ impl<'a> Model<'a> {
         let save_dir = "untitled".to_string();
 
         let start_time = std::time::Instant::now();
-        
         /*------------------------------------
                 Return Model
         ------------------------------------*/
@@ -429,10 +430,11 @@ impl<'a> Model<'a> {
                     if infos.active{
 
 
-                        {
+                        {   
+                            let time = self.status.next_frame_index as f32 / self.status.setting.frame_rate as f32;
                             let parameter_buffer_host = self.pv.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                                 label: None,
-                                contents: bytemuck::bytes_of(&infos.parameter),
+                                contents: bytemuck::bytes_of(&infos.set_fluctus(time)),
                                 usage: BufferUsages::COPY_SRC,
                             });
             
@@ -488,7 +490,7 @@ impl<'a> Model<'a> {
 
             
         }
-
+        
         {
             
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -541,7 +543,7 @@ impl<'a> Model<'a> {
             }_ => {}
         }
 
-
+        
 
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [self.pv.config.width, self.pv.config.height],

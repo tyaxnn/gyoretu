@@ -7,7 +7,7 @@ use crate::status::{Status,Source,MAX_SAMPLED_TEXTURES_PER_SHADER_STAGE};
 
 pub fn gui_source(ui: &mut egui::Ui, status : &mut Status) {
 
-    if ui.button("Add source").clicked() {        
+    if ui.button("+").clicked() {        
         status.source_infos.id_last.num += 1;
 
         //Add to Status.sources
@@ -28,7 +28,7 @@ pub fn gui_source(ui: &mut egui::Ui, status : &mut Status) {
             ui.label(format!("Source #{}",sources[i].id.num));
 
             //select local files here
-            if ui.button("Open File").clicked() {
+            if ui.button("📂").clicked() {
                 if let Some(file) = FileDialog::new().pick_file() {
 
                     //get file name
@@ -133,7 +133,7 @@ pub fn gui_source(ui: &mut egui::Ui, status : &mut Status) {
                 }
             });
             
-            if ui.button("delete").clicked() {
+            if ui.button("🗑").clicked() {
                 delete_lists.push(i);
             }
             else {

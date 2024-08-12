@@ -3,6 +3,8 @@ use num::Num;
 
 use serde::{Serialize, Deserialize};
 
+use crate::fluctus::Fluctus;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LayerInfos{
     pub types : Vec<LayerType>,
@@ -133,32 +135,6 @@ impl FilterInfo {
                     Pinfo::new(Ptype::Float(ran_f_ini),"clear strength"),
                 ],id, active }
             }
-            "peter_de_jong_automove" => {
-                init[0] = (10f32).to_bits();
-                init[1] = (1.902f32).to_bits();
-                init[2] = (4.1f32).to_bits();
-                init[3] = (3.5f32).to_bits();
-                init[4] = (0.9993f32).to_bits();
-                init[5] = (0.65f32).to_bits();
-                init[6] = (0.60f32).to_bits();
-                init[7] = (0.9657f32).to_bits();
-                init[8] = (1f32).to_bits();
-                init[9] = (1f32).to_bits();
-                init[10] = (0.4f32).to_bits();
-                FilterInfo{key : key_str.to_string(), parameter : init, label : vec![
-                    Pinfo::new(Ptype::Float(Range::new(-10f32,10f32)),"a amp"),
-                    Pinfo::new(Ptype::Float(Range::new(-10f32,10f32)),"b amp"),
-                    Pinfo::new(Ptype::Float(Range::new(-10f32,10f32)),"c amp"),
-                    Pinfo::new(Ptype::Float(Range::new(-10f32,10f32)),"d amp"),
-                    Pinfo::new(Ptype::Float(Range::new(-1f32,1f32)),"a v"),
-                    Pinfo::new(Ptype::Float(Range::new(-1f32,1f32)),"b v"),
-                    Pinfo::new(Ptype::Float(Range::new(-1f32,1f32)),"c v"),
-                    Pinfo::new(Ptype::Float(Range::new(-1f32,1f32)),"d v"),
-                    Pinfo::new(Ptype::Float(ran_f_ini),"mul_x"),
-                    Pinfo::new(Ptype::Float(ran_f_ini),"mul_y"),
-                    Pinfo::new(Ptype::Float(ran_f_ini),"clear strength"),
-                ],id, active }
-            }
             "noise_input" => {
                 FilterInfo{key : key_str.to_string(), parameter : init, label : vec![Pinfo::new(Ptype::Float(ran_f_ini),"density")],id, active }
             }
@@ -174,8 +150,41 @@ impl FilterInfo {
             "clear_old_buffer" => {
                 FilterInfo{key : key_str.to_string(), parameter : init, label : vec![],id, active }
             }
+            "mosaïque" => {
+                FilterInfo{key : key_str.to_string(), parameter : init, label : vec![
+                    Pinfo::new(Ptype::Integer(Range::new(1,1920)),"cell width"),
+                    Pinfo::new(Ptype::Integer(Range::new(1,1080)),"cell heigght"),
+                ],id, active }
+            }
             _ => {panic!("{} doesn't exist",key_str )}
         }
+    }
+
+    pub fn set_fluctus(&self, time : f32) -> [u32; 20]{
+        let mut out_parameter = self.parameter;
+        let mut count = 0;
+        for pinfo in &self.label{
+            
+
+            match pinfo.ptype{
+                Ptype::Float(_) => {
+                    let num = f32::from_bits(self.parameter[count]);
+                    out_parameter[count] = pinfo.fluctus.set_fluctus(num, time).to_bits();
+                    count += 1;
+                }
+                Ptype::Integer(_) => {
+                    count += 1;
+                }
+                Ptype::Color3 => {
+                    count += 3;
+                }
+                Ptype::Color4 => {
+                    count += 4;
+                }
+            }
+        }
+
+        out_parameter
     }
 }
 
@@ -191,12 +200,13 @@ pub enum Ptype {
 pub struct Pinfo {
     pub ptype : Ptype,
     pub plabel : String,
+    pub fluctus : Fluctus,
 }
 
 
 impl Pinfo{
     fn new(ptype : Ptype, label : &str) -> Pinfo {
-        Pinfo { ptype, plabel : label.to_string() }
+        Pinfo { ptype, plabel : label.to_string(), fluctus : Fluctus::new() }
     }
 }
 

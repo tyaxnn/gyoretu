@@ -62,7 +62,7 @@ fn my_rand(xy : vec2<f32> , seed : u32) -> f32{
                          vec2<f32>(12.9898 + offset * 0.17,78.233 + offset * 0.13)))*
         43758.5453123 + offset * 101.);
 
-    if randvalue < parameter.density{
+    if randvalue < 1. - parameter.density{
         return f32(0.);
     }
     else {

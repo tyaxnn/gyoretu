@@ -137,8 +137,9 @@ pub fn gui (ui: &Context, status : &mut Status, key_lists : &mut Vec<String>) {
         // .vscroll(true)
         .default_open(true)
         .scroll(true)
-        .default_width(500.)
-        .default_pos(egui::Pos2::new(0.,1000.))
+        .default_width(800.)
+        .default_height(300.)
+        .default_pos(egui::Pos2::new(0.,1400.))
         .show(&ui, |ui| {
 
             ui.horizontal(|ui| {

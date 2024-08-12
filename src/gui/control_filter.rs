@@ -1,4 +1,5 @@
 use crate::filters::{FilterInfo, LayerType, Ptype, SourceInfo};
+use crate::fluctus::Figura;
 use crate::status::Status;
 use crate::filters::LayerId;
 
@@ -56,25 +57,22 @@ pub fn gui_filters (ui: &mut egui::Ui, key_lists : &Vec<String>, status : &mut S
 
                         ui.checkbox(&mut source_info.active, "");
         
-                        ui.label(format!("Source #{} ",&source_info.source_id.num));
-                    });
-
-                    ui.horizontal(|ui| {
-        
-                        if ui.button("up").clicked() {
+                        if ui.button("⬆").clicked() {
                             if i != filter_infos_len-1{
                                 swap_lists.push((i,i+1));
                             }
                         }
-                        else if ui.button("down").clicked() {
+                        else if ui.button("⬇").clicked() {
                             if i != 0{
                                 swap_lists.push((i,i-1));
                             }
                         }
 
-                        else if ui.button("delete").clicked() {
+                        else if ui.button("🗑").clicked() {
                             delete_lists.push(i);
                         }
+
+                        ui.label(format!("Source #{} ",&source_info.source_id.num));
                     });
 
                     //フレームのオフセットをいじる
@@ -91,25 +89,21 @@ pub fn gui_filters (ui: &mut egui::Ui, key_lists : &Vec<String>, status : &mut S
 
                         ui.checkbox(&mut filter_info.active, "");
         
-                        ui.label(format!("{}",&filter_info.key));
-                    });
-        
-                    
-                    ui.horizontal(|ui| {
-        
-                        if ui.button("up").clicked() {
+                        if ui.button("⬆").clicked() {
                             if i != filter_infos_len-1{
                                 swap_lists.push((i,i+1));
                             }
                         }
-                        else if ui.button("down").clicked() {
+                        else if ui.button("⬇").clicked() {
                             if i != 0{
                                 swap_lists.push((i,i-1));
                             }
                         }
-                        else if ui.button("delete").clicked() {
+                        else if ui.button("🗑").clicked() {
                             delete_lists.push(i);
                         }
+
+                        ui.label(format!("{}",&filter_info.key));
                     });
                     
                     //パラメータを調節するUIを作る
@@ -119,86 +113,7 @@ pub fn gui_filters (ui: &mut egui::Ui, key_lists : &Vec<String>, status : &mut S
                             .id_source(format!("{}",filter_info.id.num)).default_open(true)
                             .show(ui, |ui| {
         
-                                let mut count = 0;
-        
-                                
-                                for p_info in &filter_info.label{
-        
-                                    match p_info.ptype {
-                                        Ptype::Integer(range) => {
-                                            let mut value= (f32::from_bits(filter_info.parameter[count])) as u32;
-        
-                                            ui.add(egui::Slider::new(&mut value, range.from..=range.to).text(&p_info.plabel));
-                            
-                                            filter_info.parameter[count] = (value as f32).to_bits();
-        
-                                            count += 1;
-                                        }
-                                        Ptype::Float(range) => {
-                                            let mut value= f32::from_bits(filter_info.parameter[count]);
-        
-                                            ui.add(egui::Slider::new(&mut value, range.from..=range.to).text(&p_info.plabel));
-                            
-                                            filter_info.parameter[count] = value.to_bits();
-        
-                                            count += 1;
-                                        }
-                                        Ptype::Color3 => {
-                                            let r= f32::from_bits(filter_info.parameter[count]);
-        
-                                            let g= f32::from_bits(filter_info.parameter[count + 1]);
-        
-                                            let b= f32::from_bits(filter_info.parameter[count + 2]);
-        
-                                            let mut rgb = [r, g, b];
-        
-                                            ui.horizontal(|ui| {
-                                                egui::widgets::color_picker::color_edit_button_rgb(ui,&mut rgb);
-        
-                                                ui.label(&p_info.plabel);
-                                            });
-        
-        
-                                            filter_info.parameter[count] = rgb[0].to_bits();
-        
-                                            filter_info.parameter[count + 1] = rgb[1].to_bits();
-        
-                                            filter_info.parameter[count + 2] = rgb[2].to_bits();
-        
-                                            count += 3;
-                                        }
-                                        Ptype::Color4 => {
-                                            let r= f32::from_bits(filter_info.parameter[count]);
-        
-                                            let g= f32::from_bits(filter_info.parameter[count + 1]);
-        
-                                            let b= f32::from_bits(filter_info.parameter[count + 2]);
-
-                                            let mut a= f32::from_bits(filter_info.parameter[count + 3]);
-        
-                                            let mut rgb = [r, g, b];
-        
-                                            ui.horizontal(|ui| {
-                                                egui::widgets::color_picker::color_edit_button_rgb(ui,&mut rgb);
-
-                                                ui.add(egui::Slider::new(&mut a, 0f32..=1f32).text(&p_info.plabel));
-                                            });
-        
-        
-                                            filter_info.parameter[count] = rgb[0].to_bits();
-        
-                                            filter_info.parameter[count + 1] = rgb[1].to_bits();
-        
-                                            filter_info.parameter[count + 2] = rgb[2].to_bits();
-
-                                            filter_info.parameter[count + 3] = a.to_bits();
-        
-                                            count += 4;
-                                        }
-                                    }
-                
-                                    
-                                }
+                                control_parameter(ui, filter_info, status.setting.quantization_cycle);
                             }
                         );
                     }
@@ -223,4 +138,130 @@ pub fn gui_filters (ui: &mut egui::Ui, key_lists : &Vec<String>, status : &mut S
 
     });
 
+}
+
+use strum::IntoEnumIterator;
+
+fn control_parameter(ui: &mut egui::Ui, filter_info : &mut FilterInfo, quantization : Option<f32>) {
+    let mut count = 0;
+        
+                                
+    for p_info in &mut filter_info.label{
+
+        match p_info.ptype {
+            Ptype::Integer(range) => {
+                let mut value= (f32::from_bits(filter_info.parameter[count])) as u32;
+
+                ui.add(egui::Slider::new(&mut value, range.from..=range.to).text(&p_info.plabel));
+
+                filter_info.parameter[count] = (value as f32).to_bits();
+
+                count += 1;
+            }
+            Ptype::Float(range) => {
+                let mut value= f32::from_bits(filter_info.parameter[count]);
+
+                ui.horizontal(|ui| {
+
+                    ui.menu_button(egui::RichText::new(p_info.fluctus.figura.display()).monospace(), |ui|{
+                            
+                        for fluctus in Figura::iter(){
+
+                            if ui.button(fluctus.display()).clicked() {
+                                p_info.fluctus.figura = fluctus;
+                            }
+                        }
+
+                    });
+                    ui.label("T");
+                    ui.add(egui::Slider::new(&mut p_info.fluctus.cycle, 0.0001f32..=60f32));
+
+                    match quantization{
+                        Some(cycle) => {
+                            p_info.fluctus.cycle = {
+                                let rem = p_info.fluctus.cycle.rem_euclid(cycle);
+
+                                if cycle * 0.5 < rem {
+                                    p_info.fluctus.cycle + cycle - rem
+                                }
+                                else {
+                                    p_info.fluctus.cycle - rem
+                                }
+                            };
+                        }
+                        None => {}
+                    }
+                    
+
+                    ui.label("θ");
+                    ui.add(egui::Slider::new(&mut p_info.fluctus.phase, 0f32..=1f32));
+
+                    ui.label("amp");
+
+                    ui.add(egui::Slider::new(&mut value, range.from..=range.to).text(&p_info.plabel));
+
+                    filter_info.parameter[count] = value.to_bits();
+
+                });
+
+                
+
+                count += 1;
+            }
+            Ptype::Color3 => {
+                let r= f32::from_bits(filter_info.parameter[count]);
+
+                let g= f32::from_bits(filter_info.parameter[count + 1]);
+
+                let b= f32::from_bits(filter_info.parameter[count + 2]);
+
+                let mut rgb = [r, g, b];
+
+                ui.horizontal(|ui| {
+                    egui::widgets::color_picker::color_edit_button_rgb(ui,&mut rgb);
+
+                    ui.label(&p_info.plabel);
+                });
+
+
+                filter_info.parameter[count] = rgb[0].to_bits();
+
+                filter_info.parameter[count + 1] = rgb[1].to_bits();
+
+                filter_info.parameter[count + 2] = rgb[2].to_bits();
+
+                count += 3;
+            }
+            Ptype::Color4 => {
+                let r= f32::from_bits(filter_info.parameter[count]);
+
+                let g= f32::from_bits(filter_info.parameter[count + 1]);
+
+                let b= f32::from_bits(filter_info.parameter[count + 2]);
+
+                let mut a= f32::from_bits(filter_info.parameter[count + 3]);
+
+                let mut rgb = [r, g, b];
+
+                ui.horizontal(|ui| {
+                    egui::widgets::color_picker::color_edit_button_rgb(ui,&mut rgb);
+
+                    ui.add(egui::Slider::new(&mut a, 0f32..=1f32).text(&p_info.plabel));
+                });
+
+
+                filter_info.parameter[count] = rgb[0].to_bits();
+
+                filter_info.parameter[count + 1] = rgb[1].to_bits();
+
+                filter_info.parameter[count + 2] = rgb[2].to_bits();
+
+                filter_info.parameter[count + 3] = a.to_bits();
+
+                count += 4;
+            }
+        }
+
+        
+    }    
 }

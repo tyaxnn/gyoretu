@@ -10,7 +10,7 @@ pub enum PinPongStatus{
     F2T1,
 }
 
-pub const MAX_SAMPLED_TEXTURES_PER_SHADER_STAGE : u32 = 1024;
+pub const MAX_SAMPLED_TEXTURES_PER_SHADER_STAGE : u32 = 2048;
 
 pub const GEN_BUFFER_SIZE : u64 = 20;
 pub const FIL_BUFFER_SIZE : u64 = 80;
@@ -74,6 +74,7 @@ pub struct Setting{
     pub frame_len : u32,
     pub frame_rate : u32,
     pub clear_intensity : f32,
+    pub quantization_cycle : Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -151,10 +152,9 @@ impl Status {
         let win_show_status = WindowShowStatus::Source;
 
         let offset_id_map = HashMap::new();
-
         let source = Source{
             dir : ".\\assets\\dendrite".to_string(),
-            filename : "dendrite".to_string(),
+            filename : "dendrite_".to_string(),
             digit : 5,
             from : 0,
             to : 100,
@@ -168,7 +168,7 @@ impl Status {
 
         let frame_len = source.frame_len();
 
-        let setting = Setting{frame_len, frame_rate, clear_intensity : 1.};
+        let setting = Setting{frame_len, frame_rate, clear_intensity : 1., quantization_cycle : None};
 
         let sources = vec![source];
         let id_last = SourceId::new(FIRST_SOURCE_ID);

@@ -36,7 +36,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if x_prime > w{
         x_prime -= w;
     }
-    else if x_prime < 0{
+    else if x_prime < -w{
+        x_prime += 2. * w;
+    }
+    else if x_prime < 0.{
         x_prime += w;
     }
     let y_prime = r / (0.0001 + parameter.r_mul);
