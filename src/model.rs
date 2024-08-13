@@ -75,11 +75,14 @@ impl<'a> WindowChildren<'a> {
         .request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::TEXTURE_BINDING_ARRAY,
+                required_features: wgpu::Features::TEXTURE_BINDING_ARRAY |wgpu::Features::BUFFER_BINDING_ARRAY | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY |
+                wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
                 required_limits: {
                     let mut default_lim = wgpu::Limits::default();
                     
                     default_lim.max_sampled_textures_per_shader_stage = MAX_SAMPLED_TEXTURES_PER_SHADER_STAGE;
+                    
+                    default_lim.max_storage_buffers_per_shader_stage = 12;
 
                     default_lim
                 },
@@ -157,7 +160,7 @@ impl<'a> Model<'a> {
                 compute model
         ------------------------------------*/
 
-        let mut compute_model = ComputeModel::new(&pv.device,&input_tx_views_b,&output_tx_view,&status);
+        let mut compute_model = ComputeModel::new(&pv.device, pv.size.width, &input_tx_views_b,&output_tx_view,&status);
 
         compute_model.update_inputs(&input_tx_views_b, &output_tx_view, &pv.device, &status);
 
@@ -224,13 +227,10 @@ impl<'a> Model<'a> {
                 self.status.next_frame_index = (elapsed_time * self.status.setting.frame_rate as f32) as u32 % self.status.setting.frame_len;
             }
             Mode::Render(index) => {
-                self.status.next_frame_index = index;
+                self.status.next_frame_index = index % self.status.setting.frame_len;
                 
-                if index > self.status.setting.frame_len - 2{
+                if index > self.status.setting.frame_len{
                     self.status.mode = Mode::Preview;
-                }
-                else {
-                    self.status.mode = Mode::Render(index + 1)
                 }
             }
         }
@@ -308,6 +308,13 @@ impl<'a> Model<'a> {
     pub fn update_post(&mut self) {
         self.status.elapsed_frame += 1;
 
+        match self.status.mode {
+            Mode::Render(index) => {
+                self.status.mode = Mode::Render(index + 1)
+            }
+            _ => {}
+        }
+
         //self.status.ping_pong = PinPongStatus::F1T2;
     }
 
@@ -328,7 +335,7 @@ impl<'a> Model<'a> {
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         //
-        let status_buffer_data = [self.status.mov_width, self.status.mov_height, self.status.next_frame_index,self.status.elapsed_frame,(0f32).to_bits()];
+        let status_buffer_data = [self.status.mov_width, self.status.mov_height, self.status.next_frame_index,self.pv.size.width,(0f32).to_bits()];
         
 
         let status_buffer_host = self.pv.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -338,38 +345,6 @@ impl<'a> Model<'a> {
         });
         let mut encoder = self.pv.device.create_command_encoder(&Default::default());
         encoder.copy_buffer_to_buffer(&status_buffer_host, 0, &self.compute_model.status_buffer, 0, GEN_BUFFER_SIZE);
-
-        {   
-            let mut parameter = [0f32;20];
-            parameter[3] = self.status.setting.clear_intensity; 
-            let parameter_buffer_host = self.pv.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::bytes_of(&parameter),
-                usage: BufferUsages::COPY_SRC,
-            });
-
-            encoder.copy_buffer_to_buffer(&parameter_buffer_host, 0, &self.compute_model.filterinfo_buffer, 0, FIL_BUFFER_SIZE);
-
-            { 
-                let mut compute_pass = encoder.begin_compute_pass(&Default::default());
-                compute_pass.set_pipeline(&self.compute_model.pipeline_bg);
-    
-                match self.status.ping_pong{
-                    PinPongStatus::F2T1 => {
-                        compute_pass.set_bind_group(0, &self.compute_model.bindgroup_even, &[]);
-    
-                        self.status.ping_pong = PinPongStatus::F1T2
-                    }
-                    PinPongStatus::F1T2 => {
-                        compute_pass.set_bind_group(0, &self.compute_model.bindgroup_odd, &[]);
-    
-                        self.status.ping_pong = PinPongStatus::F2T1
-                    }
-                }
-                
-                compute_pass.dispatch_workgroups(self.pv.size.width / 16, self.pv.size.height / 16, 1);
-            }
-        } 
         
         //Filter the image here
         for layer in &self.status.layer_infos.types
@@ -383,10 +358,14 @@ impl<'a> Model<'a> {
                         match self.status.offset_id_map.get(&infos.source_id){
                             Some(identity) => {
 
-                                if infos.offset <= self.status.next_frame_index && self.status.next_frame_index < infos.offset + infos.len {
-                                    let read_here = self.status.next_frame_index + identity.offset_array_texture - infos.offset;
+                                let streched_index = (self.status.next_frame_index as f32 * infos.speed) as i32;
 
-                                    let status_buffer_data = [self.status.mov_width, self.status.mov_height, read_here ,self.status.elapsed_frame,(infos.alpha).to_bits()];
+                                if infos.offset <= streched_index && 
+                                    streched_index < infos.offset + infos.len as i32 
+                                {
+                                    let read_here = (streched_index + identity.offset_array_texture as i32 - infos.offset) as u32;
+
+                                    let status_buffer_data = [self.status.mov_width, self.status.mov_height, read_here ,self.pv.size.width,(infos.alpha).to_bits()];
                                     
     
     
@@ -516,6 +495,7 @@ impl<'a> Model<'a> {
         match self.status.mode{
             Mode::Render(_) => {
 
+                
                 let u32_size = std::mem::size_of::<u32>() as u32;
 
                 encoder.copy_texture_to_buffer(
@@ -574,21 +554,22 @@ impl<'a> Model<'a> {
 
                     use chrono::{DateTime,Local};
                     let runtime : DateTime<Local> = Local::now();
-                    self.save_dir = format!("{}_{}",runtime.format("%Y%m%d%H%M").to_string(),self.status.output_setting.filename);
+                    self.save_dir = format!("{}_{}",runtime.format("%Y%m%d%H%M%S").to_string(),self.status.output_setting.filename);
 
                     fs::create_dir(format!("./assets/outputs/{}",self.save_dir))
                     .expect("Failed to create directory");
                 }
 
                 {   
+                    let num = index % self.status.setting.frame_len;
                     let file_path = format!("./assets/outputs/{}/{}_00{}{}.png",self.save_dir,self.status.output_setting.filename,
                         {
                         
-                            if index < 10 {"00"}
-                            else if index < 100 {"0"}
+                            if num < 10 {"00"}
+                            else if num < 100 {"0"}
                             else {""}
                         
-                        },index);
+                        },num);
                     let buffer_slice = self.output_buffer.slice(..);
                 
                     // NOTE: We have to create the mapping THEN device.poll() before await

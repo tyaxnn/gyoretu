@@ -6,12 +6,12 @@ use std::collections::HashMap;
 use wgpu::{util::DeviceExt, BindGroup, BindingResource, BufferUsages, Extent3d, TextureView};
 
 use crate::status::{Status,GEN_BUFFER_SIZE,FIL_BUFFER_SIZE,sources_len,SourceIdentity};
+use crate::filters::FilterKeys;
 
 use crate::util::num_to_seqstr;
 
 pub struct ComputeModel{
     pub pipeline_add_source : wgpu::ComputePipeline,
-    pub pipeline_bg : wgpu::ComputePipeline,
     pub pipelines : HashMap<String,wgpu::ComputePipeline>,
     pub bindgroup_odd : wgpu::BindGroup,
     pub bindgroup_even : wgpu::BindGroup,
@@ -19,7 +19,8 @@ pub struct ComputeModel{
     pub intermediate_buffer_1 : wgpu::Buffer,
     pub intermediate_buffer_2 : wgpu::Buffer,
     pub filterinfo_buffer : wgpu::Buffer,
-    pub key_lists : Vec<String>,
+    pub pre_compose_buffers : Vec<wgpu::Buffer>,
+    pub key_lists : FilterKeys,
 }
 
 struct KeyShaderModule {
@@ -30,6 +31,7 @@ struct KeyShaderModule {
 impl ComputeModel {
     pub fn new(
         device : &wgpu::Device,
+        win_width : u32,
         input_tx_views_b : &Vec<&TextureView>,
         output_tx_view : &TextureView,
         status : &Status,
@@ -41,12 +43,7 @@ impl ComputeModel {
             source: wgpu::ShaderSource::Wgsl(include_str!("add_source.wgsl").into()),
         });
 
-        let shader_module_bg = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(include_str!("clear.wgsl").into()),
-        });
-
-        let key_lists = Vec::new();
+        let key_lists = FilterKeys::new();
 
 
         let bindgroup_layout = bindgroup_layout_factory(device, sources_len(&status.source_infos.sources));
@@ -66,14 +63,6 @@ impl ComputeModel {
             compilation_options: Default::default(),
         });
 
-        let pipeline_bg = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            module: &shader_module_bg,
-            entry_point: "main",
-            compilation_options: Default::default(),
-        });
-
         //this vec contain all filter's piplines
         let pipelines = HashMap::new();
 
@@ -88,7 +77,7 @@ impl ComputeModel {
             mapped_at_creation: false,
         });
 
-        let init_vec = vec![[0.7f32;4]; (status.mov_width * status.mov_height) as usize];
+        let init_vec = vec![[0.7f32;4]; (win_width * status.mov_height) as usize];
 
         let intermediate_buffer_1 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("intermediate_read"),
@@ -109,18 +98,43 @@ impl ComputeModel {
             usage: BufferUsages::COPY_DST | BufferUsages::STORAGE | BufferUsages::UNIFORM,
             mapped_at_creation: false,
         });
+
+        let mut pre_compose_buffers = Vec::new();
+
+        for _ in 0..10{
+            pre_compose_buffers.push({
+                device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("pre compose"),
+                    size: (init_vec.len() * std::mem::size_of::<f32>() * 4) as u64,
+                    usage:  BufferUsages::COPY_DST | BufferUsages::STORAGE,
+                    mapped_at_creation: false,
+                })
+            })
+        }
+
+        let pre_compse_buffer_bindings = [
+            pre_compose_buffers[0].as_entire_buffer_binding(),
+            pre_compose_buffers[1].as_entire_buffer_binding(),
+            pre_compose_buffers[2].as_entire_buffer_binding(),
+            pre_compose_buffers[3].as_entire_buffer_binding(),
+            pre_compose_buffers[4].as_entire_buffer_binding(),
+            pre_compose_buffers[5].as_entire_buffer_binding(),
+            pre_compose_buffers[6].as_entire_buffer_binding(),
+            pre_compose_buffers[7].as_entire_buffer_binding(),
+            pre_compose_buffers[8].as_entire_buffer_binding(),
+            pre_compose_buffers[9].as_entire_buffer_binding(),
+        ];
         
         /*------------------------------------
                 create bindgroups
         ------------------------------------*/
 
-        let bindgroup_odd = bind_group_factory(device, &bindgroup_layout, input_tx_views_b, output_tx_view, status_buffer.as_entire_binding(), intermediate_buffer_1.as_entire_binding(),intermediate_buffer_2.as_entire_binding(), filterinfo_buffer.as_entire_binding());
+        let bindgroup_odd = bind_group_factory(device, &bindgroup_layout, input_tx_views_b, output_tx_view, status_buffer.as_entire_binding(), intermediate_buffer_1.as_entire_binding(),intermediate_buffer_2.as_entire_binding(), filterinfo_buffer.as_entire_binding(),&pre_compse_buffer_bindings);
 
-        let bindgroup_even = bind_group_factory(device, &bindgroup_layout, input_tx_views_b, output_tx_view, status_buffer.as_entire_binding(), intermediate_buffer_2.as_entire_binding(),intermediate_buffer_1.as_entire_binding(), filterinfo_buffer.as_entire_binding());
+        let bindgroup_even = bind_group_factory(device, &bindgroup_layout, input_tx_views_b, output_tx_view, status_buffer.as_entire_binding(), intermediate_buffer_2.as_entire_binding(),intermediate_buffer_1.as_entire_binding(), filterinfo_buffer.as_entire_binding(),&pre_compse_buffer_bindings);
 
         ComputeModel{
             pipeline_add_source,
-            pipeline_bg,
             pipelines,
             bindgroup_odd,
             bindgroup_even,
@@ -128,6 +142,7 @@ impl ComputeModel {
             intermediate_buffer_1,
             intermediate_buffer_2,
             filterinfo_buffer,
+            pre_compose_buffers,
             key_lists,
         }
     }
@@ -155,16 +170,11 @@ impl ComputeModel {
             source: wgpu::ShaderSource::Wgsl(include_str!("add_source.wgsl").into()),
         });
 
-        let shader_module_bg = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(include_str!("clear.wgsl").into()),
-        });
-
         let paths = fs::read_dir("./src/filters/").unwrap();
 
         let mut shader_modules = Vec::new();
 
-        let mut key_lists = Vec::new();
+        let mut key_lists = FilterKeys::new();
         
         for path in paths {
             let pathbuf = path.unwrap().path();
@@ -179,7 +189,7 @@ impl ComputeModel {
                 source: wgpu::ShaderSource::Wgsl(path_read_to_string.into()),
             });
 
-            key_lists.push(key.clone());
+            key_lists.add_key(&key);
             shader_modules.push(KeyShaderModule{key,shader_module});
             
         }
@@ -202,14 +212,6 @@ impl ComputeModel {
             compilation_options: Default::default(),
         });
 
-        self.pipeline_bg = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            module: &shader_module_bg,
-            entry_point: "main",
-            compilation_options: Default::default(),
-        });
-
         //this vec contain all filter's piplines
         let mut pipelines = HashMap::new();
 
@@ -227,9 +229,22 @@ impl ComputeModel {
 
         self.pipelines = pipelines;
 
-        self.bindgroup_odd = bind_group_factory(device, &bindgroup_layout, input_tx_views_b, output_tx_view, self.status_buffer.as_entire_binding(), self.intermediate_buffer_1.as_entire_binding(),self.intermediate_buffer_2.as_entire_binding(), self.filterinfo_buffer.as_entire_binding());
+        let pre_compse_buffer_bindings = [
+            self.pre_compose_buffers[0].as_entire_buffer_binding(),
+            self.pre_compose_buffers[1].as_entire_buffer_binding(),
+            self.pre_compose_buffers[2].as_entire_buffer_binding(),
+            self.pre_compose_buffers[3].as_entire_buffer_binding(),
+            self.pre_compose_buffers[4].as_entire_buffer_binding(),
+            self.pre_compose_buffers[5].as_entire_buffer_binding(),
+            self.pre_compose_buffers[6].as_entire_buffer_binding(),
+            self.pre_compose_buffers[7].as_entire_buffer_binding(),
+            self.pre_compose_buffers[8].as_entire_buffer_binding(),
+            self.pre_compose_buffers[9].as_entire_buffer_binding(),
+        ];
 
-        self.bindgroup_even = bind_group_factory(device, &bindgroup_layout, input_tx_views_b, output_tx_view, self.status_buffer.as_entire_binding(), self.intermediate_buffer_2.as_entire_binding(),self.intermediate_buffer_1.as_entire_binding(), self.filterinfo_buffer.as_entire_binding());
+        self.bindgroup_odd = bind_group_factory(device, &bindgroup_layout, input_tx_views_b, output_tx_view, self.status_buffer.as_entire_binding(), self.intermediate_buffer_1.as_entire_binding(),self.intermediate_buffer_2.as_entire_binding(), self.filterinfo_buffer.as_entire_binding(),&pre_compse_buffer_bindings);
+
+        self.bindgroup_even = bind_group_factory(device, &bindgroup_layout, input_tx_views_b, output_tx_view, self.status_buffer.as_entire_binding(), self.intermediate_buffer_2.as_entire_binding(),self.intermediate_buffer_1.as_entire_binding(), self.filterinfo_buffer.as_entire_binding(),&pre_compse_buffer_bindings);
 
         
     }
@@ -283,7 +298,7 @@ pub fn input_tx_views_factory (
             let input_texture = device.create_texture(
                 &wgpu::TextureDescriptor {
                     size: texture_size,
-                    mip_level_count: 1, // We'll talk about this a little later
+                    mip_level_count: 1, 
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
                     format: wgpu::TextureFormat::Rgba8UnormSrgb,
@@ -359,6 +374,7 @@ fn bind_group_factory(
     binding_source_1 : BindingResource,
     binding_source_2 : BindingResource,
     filter_binding : BindingResource,
+    pre_compose_buffer_binding : &[wgpu::BufferBinding ; 10]
 ) -> BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: None,
@@ -389,6 +405,10 @@ fn bind_group_factory(
             wgpu::BindGroupEntry {
                 binding: 5,
                 resource: filter_binding,
+            },
+            wgpu::BindGroupEntry {
+                binding: 6,
+                resource: wgpu::BindingResource::BufferArray(pre_compose_buffer_binding),
             },
 
         ],
@@ -469,6 +489,17 @@ fn bindgroup_layout_factory(
                     min_binding_size: None,
                 },
                 count: None,
+            },
+            //pre compose buffer
+            wgpu::BindGroupLayoutEntry {
+                binding: 6,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: (false) },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: NonZeroU32::new(10),
             },
         ],
     })

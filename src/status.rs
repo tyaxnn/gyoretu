@@ -1,5 +1,5 @@
 use crate::gui::WindowShowStatus;
-use crate::filters::{SourceInfo,LayerType,LayerId,LayerInfos};
+use crate::filters::{FilterInfo, LayerId, LayerInfos, LayerType, SourceInfo};
 use std::collections::HashMap;
 
 use serde::{Serialize, Deserialize};
@@ -73,7 +73,6 @@ impl SourceIdentity{
 pub struct Setting{
     pub frame_len : u32,
     pub frame_rate : u32,
-    pub clear_intensity : f32,
     pub quantization_cycle : Option<f32>,
 }
 
@@ -153,8 +152,8 @@ impl Status {
 
         let offset_id_map = HashMap::new();
         let source = Source{
-            dir : ".\\assets\\dendrite".to_string(),
-            filename : "dendrite_".to_string(),
+            dir : ".\\assets".to_string(),
+            filename : "".to_string(),
             digit : 5,
             from : 0,
             to : 100,
@@ -162,13 +161,15 @@ impl Status {
             id : SourceId::new(FIRST_SOURCE_ID),
         };
 
+        let ini_clear_filter = LayerType::Filter(FilterInfo::new("clear_old_buffer", LayerId::new(FIRST_SOURCE_ID + 1)));
+
         let ini_source_layer = LayerType::Source(SourceInfo::new(LayerId::new(FIRST_SOURCE_ID), SourceId::new(FIRST_SOURCE_ID), source.frame_len()));
 
-        let types = vec![ini_source_layer];
+        let types = vec![ini_clear_filter,ini_source_layer];
 
         let frame_len = source.frame_len();
 
-        let setting = Setting{frame_len, frame_rate, clear_intensity : 1., quantization_cycle : None};
+        let setting = Setting{frame_len, frame_rate, quantization_cycle : None};
 
         let sources = vec![source];
         let id_last = SourceId::new(FIRST_SOURCE_ID);

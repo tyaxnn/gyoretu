@@ -2,13 +2,14 @@ struct Status {
     width: u32,
     height: u32,
     frame_read : u32,
-    spare_1 : u32,
+    win_width : u32,
     spare_2 : f32,
 };
 
 struct Parameter {
     displacement_x : f32,
     displacement_y : f32,
+    use_precomposed : f32,
 }
 
 
@@ -17,6 +18,7 @@ struct Parameter {
 @group(0) @binding(3) var<storage, read> intermediate_r: array<vec4<f32>>;
 @group(0) @binding(4) var<storage, read_write> intermediate_w: array<vec4<f32>>;
 @group(0) @binding(5) var<uniform> parameter: Parameter;
+@group(0) @binding(6) var<storage, read_write> pre_compose: binding_array<array<vec4<f32>>>;
 
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
@@ -26,16 +28,25 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let w = f32(status.width);
     let h = f32(status.height);
 
-    let map_color = intermediate_r[index_xy(global_id.xy)];
+    let index = parameter.use_precomposed;
+
+    var map_color = intermediate_r[index_xy(global_id.xy)];
+
+    if index >= 0. && index <= 9. {
+        map_color = pre_compose[u32(index)][index_xy(global_id.xy)];
+    }
+
 
     let new_x = x + parameter.displacement_x * (map_color.x - 0.5);
     let new_y = y + parameter.displacement_y * (map_color.y - 0.5);
     
     let color = anti_aliasing(new_x,new_y);
 
-    intermediate_w[index_xy(global_id.xy)] = color;
-        
-    textureStore(outputTex, vec2<i32>(global_id.xy), color);
+    if global_id.x < status.width{
+        intermediate_w[index_xy(global_id.xy)] = color;
+                
+        textureStore(outputTex, vec2<i32>(global_id.xy), color);
+    }
 
 }
 

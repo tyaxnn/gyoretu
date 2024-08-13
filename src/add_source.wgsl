@@ -2,7 +2,7 @@ struct Status {
     width: u32,
     height: u32,
     frame_read : u32,
-    spare_1 : u32,
+    win_width : u32,
     alpha : f32,
 };
 
@@ -39,9 +39,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var color : vec4<f32> = vec4<f32>(color_new_rgb, color_new_a);
     
-    intermediate_w[global_id.x + status.width * global_id.y] = color;
-        
-    textureStore(outputTex, vec2<i32>(global_id.xy), color);
+    if global_id.x < status.width{
+        intermediate_w[index_xy(global_id.xy)] = color;
+                
+        textureStore(outputTex, vec2<i32>(global_id.xy), color);
+    }
 
 }
 

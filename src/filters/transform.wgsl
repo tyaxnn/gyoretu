@@ -7,8 +7,11 @@ struct Status {
 };
 
 struct Parameter {
-    r_mul : f32,
-    theta_offset : f32,
+    parallel_x : f32,
+    parallel_y : f32,
+    expantion_x : f32,
+    expantion_y : f32,
+    rotate : f32,
 }
 
 const PI: f32 = 3.141592653;
@@ -28,21 +31,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let w = f32(status.width);
     let h = f32(status.height);
 
-    let r = sqrt(square(x - w/2.) + square(-y + h/2.));
-    let theta = atan2(-y+h/2.,x-w/2.);
+    let x_pre_rotate = (x - w/2.) * cos(parameter.rotate * PI * 2.) - (y - h/2.) * sin(parameter.rotate * PI * 2.);
+    let y_pre_rotate = (x - w/2.) * sin(parameter.rotate * PI * 2.) + (y - h/2.) * cos(parameter.rotate * PI * 2.);
 
-    var x_prime = (theta + 2. * PI * parameter.theta_offset)/(2. * PI) * w;
+    let x_prime = x_pre_rotate / parameter.expantion_x + w/2. - parameter.parallel_x;
 
-    if x_prime > w{
-        x_prime -= w;
-    }
-    else if x_prime < -w{
-        x_prime += 2. * w;
-    }
-    else if x_prime < 0.{
-        x_prime += w;
-    }
-    let y_prime = r / (0.0001 + parameter.r_mul);
+    let y_prime = y_pre_rotate / parameter.expantion_y + h/2. - parameter.parallel_y;
 
     let color = anti_aliasing(x_prime,y_prime);
 

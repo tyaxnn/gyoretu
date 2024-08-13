@@ -2,7 +2,7 @@ struct Status {
     width: u32,
     height: u32,
     frame_read : u32,
-    spare_1 : u32,
+    win_width : u32,
     spare_2 : f32,
 };
 
@@ -42,11 +42,15 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
         pre_color.w = max(pre_color.w - parameter.clear_strength,0.);
 
-        intermediate_w[index_xy(index)] = color;
-        textureStore(outputTex, vec2<i32>(index), color);
+        if global_id.x < status.width{
+            intermediate_w[index_xy(index)] = color;
+            textureStore(outputTex, vec2<i32>(index), color);
 
-        intermediate_w[index_xy(global_id.xy)] = pre_color;
-        textureStore(outputTex, vec2<i32>(global_id.xy), pre_color);
+            intermediate_w[index_xy(global_id.xy)] = pre_color;
+            textureStore(outputTex, vec2<i32>(global_id.xy), pre_color);
+        }
+
+        
     }
     
 }
@@ -60,7 +64,7 @@ fn index_x_y(x : u32, y : u32) -> u32 {
 }
 
 fn fine(input : vec4<f32>) -> bool {
-    if input.x == f32(1.) && input.y == f32(1.) && input.z == f32(1.) && input.w != 0.0{
+    if input.x >= f32(0.99) && input.y >= f32(0.99) && input.z >= f32(0.99) && input.w != 0.0{
         return true;
     }
     else {

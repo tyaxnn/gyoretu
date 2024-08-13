@@ -10,6 +10,7 @@ use winit::window::Window;
 use serde::{Serialize, Deserialize};
 
 use crate::status::Status;
+use crate::filters::FilterKeys;
 
 mod control_filter;
 use control_filter::gui_filters;
@@ -131,15 +132,18 @@ pub enum WindowShowStatus{
     Save,
 }
 
-pub fn gui (ui: &Context, status : &mut Status, key_lists : &mut Vec<String>) {
+pub fn gui (ui: &Context, status : &mut Status, key_lists : &mut FilterKeys) {
 
     egui::Window::new("Controller")
         // .vscroll(true)
         .default_open(true)
         .scroll(true)
-        .default_width(800.)
-        .default_height(300.)
-        .default_pos(egui::Pos2::new(0.,1400.))
+        .default_width(625.)
+        .default_height(1080.)
+        .default_pos(egui::Pos2::new(1295.,0.))
+        .resizable(false)
+        .movable(false)
+        .title_bar(false)
         .show(&ui, |ui| {
 
             ui.horizontal(|ui| {

@@ -75,6 +75,14 @@ pub fn gui_source(ui: &mut egui::Ui, status : &mut Status) {
                                     sources[i].digit = num_str.chars().count() as u32;
                                     sources[i].from = num_list[0];
                                     sources[i].to = *num_list.last().unwrap();
+
+                                    match get_extention(&file){
+                                        Some(extention) => {
+                                            sources[i].extension = extention.to_string();
+                                        }
+                                        _ => {}
+                                    }
+                                    
                                 }
                                 None => {}
                             }

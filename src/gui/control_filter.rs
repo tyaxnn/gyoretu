@@ -1,22 +1,98 @@
-use crate::filters::{FilterInfo, LayerType, Ptype, SourceInfo};
+use crate::filters::{FilterInfo, LayerType, Ptype, SourceInfo, FilterKeys};
 use crate::fluctus::Figura;
 use crate::status::Status;
 use crate::filters::LayerId;
 
-pub fn gui_filters (ui: &mut egui::Ui, key_lists : &Vec<String>, status : &mut Status) {
+pub fn gui_filters (ui: &mut egui::Ui, key_lists : &FilterKeys, status : &mut Status) {
 
     ui.horizontal(|ui| {
 
         ui.menu_button("Add filter", |ui| {
 
-            for key in key_lists{
-                if ui.button(key).clicked() {
+            ui.menu_button("transform", |ui|
 
-                    status.layer_infos.id_last.num += 1;
-                    status.layer_infos.types.push(LayerType::Filter(FilterInfo::new(key,LayerId::new(status.layer_infos.id_last.num))));
-                    ui.close_menu();
-                };
-            }
+                for key in &key_lists.transforms{
+                    if ui.button(key).clicked() {
+
+                        status.layer_infos.id_last.num += 1;
+                        status.layer_infos.types.push(LayerType::Filter(FilterInfo::new(key,LayerId::new(status.layer_infos.id_last.num))));
+                        ui.close_menu();
+                    };
+                }
+
+            );
+            ui.menu_button("color adjustment", |ui|
+
+                for key in &key_lists.color_adjustments{
+                    if ui.button(key).clicked() {
+
+                        status.layer_infos.id_last.num += 1;
+                        status.layer_infos.types.push(LayerType::Filter(FilterInfo::new(key,LayerId::new(status.layer_infos.id_last.num))));
+                        ui.close_menu();
+                    };
+                }
+
+            );
+            ui.menu_button("dithering", |ui|
+
+                for key in &key_lists.ditherings{
+                    if ui.button(key).clicked() {
+
+                        status.layer_infos.id_last.num += 1;
+                        status.layer_infos.types.push(LayerType::Filter(FilterInfo::new(key,LayerId::new(status.layer_infos.id_last.num))));
+                        ui.close_menu();
+                    };
+                }
+
+            );
+            ui.menu_button("generating", |ui|
+
+                for key in &key_lists.generatings{
+                    if ui.button(key).clicked() {
+
+                        status.layer_infos.id_last.num += 1;
+                        status.layer_infos.types.push(LayerType::Filter(FilterInfo::new(key,LayerId::new(status.layer_infos.id_last.num))));
+                        ui.close_menu();
+                    };
+                }
+
+            );
+            ui.menu_button("buffer handling", |ui|
+
+                for key in &key_lists.buffer_handlings{
+                    if ui.button(key).clicked() {
+
+                        status.layer_infos.id_last.num += 1;
+                        status.layer_infos.types.push(LayerType::Filter(FilterInfo::new(key,LayerId::new(status.layer_infos.id_last.num))));
+                        ui.close_menu();
+                    };
+                }
+
+            );
+            ui.menu_button("simulation", |ui|
+
+                for key in &key_lists.simulations{
+                    if ui.button(key).clicked() {
+
+                        status.layer_infos.id_last.num += 1;
+                        status.layer_infos.types.push(LayerType::Filter(FilterInfo::new(key,LayerId::new(status.layer_infos.id_last.num))));
+                        ui.close_menu();
+                    };
+                }
+
+            );
+            ui.menu_button("distortion", |ui|
+
+                for key in &key_lists.distortions{
+                    if ui.button(key).clicked() {
+
+                        status.layer_infos.id_last.num += 1;
+                        status.layer_infos.types.push(LayerType::Filter(FilterInfo::new(key,LayerId::new(status.layer_infos.id_last.num))));
+                        ui.close_menu();
+                    };
+                }
+
+            );
             if ui.button("cancel").clicked() {
                 ui.close_menu();
             }
@@ -79,9 +155,11 @@ pub fn gui_filters (ui: &mut egui::Ui, key_lists : &Vec<String>, status : &mut S
                     egui::CollapsingHeader::new("")
                             .id_source(format!("{}",source_info.id.num)).default_open(true)
                             .show(ui, |ui| {    
-                        ui.add(egui::Slider::new(&mut source_info.offset, 0..= status.setting.frame_len).text("offset"));
+                        ui.add(egui::Slider::new(&mut source_info.offset, status.setting.frame_len as i32 * -1..= status.setting.frame_len as i32).text("offset"));
 
                         ui.add(egui::Slider::new(&mut source_info.alpha, 0f32..= 1f32).text("alpha"));
+
+                        ui.add(egui::Slider::new(&mut source_info.speed, 0.001f32..= 10f32).text("speed"));
                     });
                 }
                 LayerType::Filter(filter_info) => {

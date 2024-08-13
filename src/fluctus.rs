@@ -54,6 +54,16 @@ impl Fluctus{
 
                 input * ((rem - 0.5).powf(2.) * -200. * self.cycle.powf(2.)).exp() 
             }
+            Figura::InverseTri => {
+                let rem = (time / self.cycle + self.phase).rem_euclid(1.);
+                
+                input * (1. - rem)
+            }
+            Figura::Trifrom1 => {
+                let rem = (time / self.cycle + self.phase).rem_euclid(1.);
+                
+                input * rem + 1. * (1. - rem)
+            }
         }
     }
 }
@@ -66,6 +76,8 @@ pub enum Figura {
     Triangle,
     Sinln,
     Delta,
+    InverseTri,
+    Trifrom1,
 }
 
 impl Figura{
@@ -89,6 +101,12 @@ impl Figura{
             }
             Figura::Delta => {
                 out_str = "delta"
+            }
+            Figura::InverseTri => {
+                out_str = "invtr"
+            }
+            Figura::Trifrom1 => {
+                out_str = "tri 1"
             }
         };
         

@@ -2,7 +2,7 @@ struct Status {
     width: u32,
     height: u32,
     frame_read : u32,
-    elapsed_frame : u32,
+    win_width : u32,
     spare_2 : f32,
 };
 struct Parameter {
@@ -22,7 +22,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let color_pre = intermediate_r[index_xy(global_id.xy)];
 
     let xyf32 = vec2<f32>(f32(global_id.x)/f32(status.width),f32(global_id.y)/f32(status.height));
-    let noise = my_rand(xyf32,status.elapsed_frame);
+    let noise = my_rand(xyf32,status.frame_read);
 
     let color_source : vec4<f32> = vec4<f32>(noise, noise, noise, noise);
     
@@ -40,9 +40,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var color : vec4<f32> = vec4<f32>(color_new_rgb, color_new_a);
     
-    intermediate_w[global_id.x + status.width * global_id.y] = color;
-        
-    textureStore(outputTex, vec2<i32>(global_id.xy), color);
+    if global_id.x < status.width{
+        intermediate_w[index_xy(global_id.xy)] = color;
+                
+        textureStore(outputTex, vec2<i32>(global_id.xy), color);
+    }
 
 }
 
