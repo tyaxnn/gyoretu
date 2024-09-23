@@ -81,13 +81,13 @@ impl FilterKeys{
             "flip_x" | "flip_y" | "polar_coordinate" | "transform"=> {
                 self.transforms.push(key.to_string())
             }
-            "monochrome" => {
+            "monochrome" | "hsv_shift"=> {
                 self.color_adjustments.push(key.to_string())
             }
-            "threshold" | "bayer_16" | "mosaïque" => {
+            "threshold" | "bayer_16" | "mosaïque" | "laplacian" => {
                 self.ditherings.push(key.to_string())
             }
-            "bg" | "seed" | "noise_input"=> {
+            "bg" | "seed" | "noise_input" | "vignette" => {
                 self.generatings.push(key.to_string())
             }
             "displacement_map" => {
@@ -190,7 +190,7 @@ impl FilterInfo {
                 ],id, active}
             }
             "noise_input" => {
-                FilterInfo{key : key_str.to_string(), parameter : init, label : vec![Pinfo::new(Ptype::Float(ran_f_ini),"density")],id, active}
+                FilterInfo{key : key_str.to_string(), parameter : init, label : vec![Pinfo::new(Ptype::Float(ran_f_ini),"alpha")],id, active}
             }
             "seed" => {
                 FilterInfo{key : key_str.to_string(), parameter : init, label : vec![Pinfo::new(Ptype::Integer(Range::new(0,1919)),"seed_w"),Pinfo::new(Ptype::Integer(Range::new(0,1079)),"seed_h")],id, active}
@@ -200,6 +200,7 @@ impl FilterInfo {
                     Pinfo::new(Ptype::Float(Range::new(-5000f32,5000f32)),"displacement x"),
                     Pinfo::new(Ptype::Float(Range::new(-5000f32,5000f32)),"displacement y"),
                     Pinfo::new(Ptype::Integer(Range::new(0,10)),"source buffer index"),
+                    Pinfo::new(Ptype::Bool,"use previous layer as source")
                 ],id, active}
             }
             "clear_old_buffer" => {
@@ -240,6 +241,18 @@ impl FilterInfo {
                     Pinfo::new(Ptype::Float(ran_f_ini),"rotate"),
                 ],id, active}
             }
+            "laplacian" => {
+                FilterInfo{key : key_str.to_string(), parameter : init, label : vec![],id, active}
+            }
+            "hsv_shift" => {
+                FilterInfo{key : key_str.to_string(), parameter : init, label : vec![Pinfo::new(Ptype::Float(ran_f_ini),"h_shift")
+                ,Pinfo::new(Ptype::Float(Range::new(-1f32,1f32)),"s_shift")
+                ,Pinfo::new(Ptype::Float(Range::new(-1f32,1f32)),"v_shift")],id, active}
+            }
+            "vignette" => {
+                FilterInfo{key : key_str.to_string(), parameter : init, label : vec![Pinfo::new(Ptype::Float(ran_f_ini),"amount")
+                ,Pinfo::new(Ptype::Float(ran_f_ini),"whiteness")],id, active}
+            }
             _ => {panic!("{} doesn't exist",key_str)}
         }
     }
@@ -265,6 +278,9 @@ impl FilterInfo {
                 Ptype::Color4 => {
                     count += 4;
                 }
+                Ptype::Bool => {
+                    count += 1;
+                }
             }
         }
 
@@ -278,6 +294,7 @@ pub enum Ptype {
     Float(Range<f32>),
     Color3,
     Color4,
+    Bool,
 }
 
 #[derive(Debug,Clone, Serialize, Deserialize)]

@@ -338,6 +338,27 @@ fn control_parameter(ui: &mut egui::Ui, filter_info : &mut FilterInfo, quantizat
 
                 count += 4;
             }
+            Ptype::Bool => {
+
+                let mut bool_checkbox;
+
+                if filter_info.parameter[count] == 0 {
+                    bool_checkbox = false;
+                }
+                else {
+                    bool_checkbox = true;
+                }
+                
+
+                ui.checkbox(&mut bool_checkbox, &p_info.plabel);
+
+                if bool_checkbox{
+                    filter_info.parameter[count] = 1;
+                }
+                else{
+                    filter_info.parameter[count] = 0;
+                }
+            }
         }
 
         

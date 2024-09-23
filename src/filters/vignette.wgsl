@@ -7,8 +7,10 @@ struct Status {
 };
 
 struct Parameter {
-    alpha : f32,
+    amount : f32,
+    white : f32,
 }
+
 
 @group(0) @binding(0) var<uniform> status: Status;
 @group(0) @binding(1) var outputTex: texture_storage_2d<rgba8unorm, write>;
@@ -21,12 +23,16 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let color_pre = intermediate_r[index_xy(global_id.xy)];
 
-    let xyf32 = vec2<f32>(f32(global_id.x)/f32(status.width),f32(global_id.y)/f32(status.height));
+    let rr = vec2<f32>(f32(global_id.x) - f32(status.width / 2), f32(global_id.y) - f32(status.height / 2));
 
-    let noise = my_rand2(xyf32,status.frame_read);
+    let r= f32(length(rr));
 
-    let color_source : vec4<f32> = vec4<f32>(noise, noise, noise, parameter.alpha);
-    
+    let half_h = f32(status.height) * 0.5;
+
+    let a = parameter.amount / half_h / half_h;
+
+    let color_source = vec4<f32>(parameter.white, parameter.white, parameter.white, min(a * r * r, 1.));
+
     let standalization = color_source.w + (1-color_source.w) * color_pre.w;
 
     var color_new_rgb = vec3<f32>(0.0,0.0,0.0);
@@ -34,8 +40,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if standalization != 0{
         color_new_rgb = (color_source.xyz * color_source.w + color_pre.xyz * (1-color_source.w) * color_pre.w) / standalization;
     }
-
-
 
     let color_new_a = standalization;
 
@@ -65,15 +69,10 @@ fn my_rand(xy : vec2<f32> , seed : u32) -> f32{
                          vec2<f32>(12.9898 + offset * 0.17,78.233 + offset * 0.13)))*
         43758.5453123 + offset * 101.);
 
-    return randvalue;
-}
-
-fn my_rand2(xy : vec2<f32> , seed : u32) -> f32 {
-    let offset = my_rand(xy, seed) + f32(seed * 50873 % 46619) / 329.86;
-
-    let randvalue =  fract(sin(dot(xy,
-                         vec2<f32>(12.9898 + offset * 0.17,78.233 + offset * 0.13)))*
-        43758.5453123 + offset * 101.);
-
-    return randvalue;
+    if randvalue < 0.1{
+        return f32(0.);
+    }
+    else {
+        return f32(1.);
+    }
 }

@@ -10,6 +10,7 @@ struct Parameter {
     displacement_x : f32,
     displacement_y : f32,
     use_precomposed : f32,
+    use_previous_layer : u32,
 }
 
 
@@ -32,7 +33,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var map_color = intermediate_r[index_xy(global_id.xy)];
 
-    if index >= 0. && index <= 9. {
+    if parameter.use_previous_layer == 0 && parameter.use_precomposed != 10{
         map_color = pre_compose[u32(index)][index_xy(global_id.xy)];
     }
 
